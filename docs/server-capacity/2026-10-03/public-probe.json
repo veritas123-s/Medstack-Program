@@ -1,0 +1,78 @@
+{
+  "time": "2026-10-03T08:17:55.251Z",
+  "base": "[redacted public HTTPS origin]",
+  "description": "Bounded public health/TLS burst probe; no authenticated workload",
+  "stages": [
+    {
+      "concurrency": 1,
+      "requests": 1,
+      "statuses": {
+        "200": 1
+      },
+      "p50Ms": 791.049,
+      "p95Ms": 791.049,
+      "elapsedMs": 791.7399,
+      "valid200": 1
+    },
+    {
+      "concurrency": 5,
+      "requests": 5,
+      "statuses": {
+        "200": 5
+      },
+      "p50Ms": 806.9526999999999,
+      "p95Ms": 1253.0137999999997,
+      "elapsedMs": 1254.4265,
+      "valid200": 5
+    },
+    {
+      "concurrency": 10,
+      "requests": 10,
+      "statuses": {
+        "200": 10
+      },
+      "p50Ms": 674.4773,
+      "p95Ms": 6824.754200000001,
+      "elapsedMs": 6827.0915,
+      "valid200": 10
+    },
+    {
+      "concurrency": 20,
+      "requests": 20,
+      "statuses": {
+        "200": 20
+      },
+      "p50Ms": 619.8479000000007,
+      "p95Ms": 806.5433999999987,
+      "elapsedMs": 813.0810999999994,
+      "valid200": 20
+    },
+    {
+      "concurrency": 40,
+      "requests": 40,
+      "statuses": {
+        "200": 40
+      },
+      "p50Ms": 770.5264999999999,
+      "p95Ms": 1798.6694000000007,
+      "elapsedMs": 1838.0962999999992,
+      "valid200": 40
+    },
+    {
+      "concurrency": 40,
+      "requests": 40,
+      "statuses": {
+        "200": 23,
+        "429": 17
+      },
+      "p50Ms": 238.71579999999994,
+      "p95Ms": 638.4063999999998,
+      "elapsedMs": 4124.1095000000005,
+      "valid200": 23
+    }
+  ],
+  "stopReason": "Public IP rate limit reached",
+  "redactions": [
+    "Public server address removed; metrics unchanged"
+  ]
+}

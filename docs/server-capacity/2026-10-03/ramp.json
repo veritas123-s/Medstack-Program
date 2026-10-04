@@ -1,0 +1,246 @@
+[
+  {
+    "scenario": "mixed-sync",
+    "users": 10,
+    "seconds": 17,
+    "requests": 160,
+    "rps": 9.4,
+    "p50Ms": 5,
+    "p95Ms": 9,
+    "p99Ms": 31,
+    "errors": 0,
+    "statuses": {
+      "200": 160
+    },
+    "cpuPercent": 7,
+    "minFreeMB": 290,
+    "responseMB": 7.1,
+    "worker": {
+      "type": "stats",
+      "rssMB": 136,
+      "loopP95Ms": 32,
+      "loopMaxMs": 56,
+      "finished": 162
+    },
+    "productionHealthMaxMs": 3,
+    "productionHealthOk": true
+  },
+  {
+    "scenario": "mixed-sync",
+    "users": 25,
+    "seconds": 17,
+    "requests": 399,
+    "rps": 23.5,
+    "p50Ms": 4,
+    "p95Ms": 8,
+    "p99Ms": 50,
+    "errors": 0,
+    "statuses": {
+      "200": 399
+    },
+    "cpuPercent": 10.2,
+    "minFreeMB": 255,
+    "responseMB": 17.8,
+    "worker": {
+      "type": "stats",
+      "rssMB": 136,
+      "loopP95Ms": 32,
+      "loopMaxMs": 70,
+      "finished": 561
+    },
+    "productionHealthMaxMs": 4,
+    "productionHealthOk": true
+  },
+  {
+    "scenario": "mixed-sync",
+    "users": 50,
+    "seconds": 17,
+    "requests": 797,
+    "rps": 46.9,
+    "p50Ms": 4,
+    "p95Ms": 25,
+    "p99Ms": 78,
+    "errors": 0,
+    "statuses": {
+      "200": 797
+    },
+    "cpuPercent": 12.7,
+    "minFreeMB": 216,
+    "responseMB": 35.7,
+    "worker": {
+      "type": "stats",
+      "rssMB": 151,
+      "loopP95Ms": 32,
+      "loopMaxMs": 93,
+      "finished": 1358
+    },
+    "productionHealthMaxMs": 17,
+    "productionHealthOk": true
+  },
+  {
+    "scenario": "mixed-sync",
+    "users": 100,
+    "seconds": 17,
+    "requests": 1591,
+    "rps": 93.8,
+    "p50Ms": 8,
+    "p95Ms": 63,
+    "p99Ms": 100,
+    "errors": 0,
+    "statuses": {
+      "200": 1591
+    },
+    "cpuPercent": 23.9,
+    "minFreeMB": 157,
+    "responseMB": 71.3,
+    "worker": {
+      "type": "stats",
+      "rssMB": 172,
+      "loopP95Ms": 34,
+      "loopMaxMs": 106,
+      "finished": 2949
+    },
+    "productionHealthMaxMs": 99,
+    "productionHealthOk": true
+  },
+  {
+    "scenario": "mixed-sync",
+    "users": 200,
+    "seconds": 17,
+    "requests": 3188,
+    "rps": 187.4,
+    "p50Ms": 29,
+    "p95Ms": 607,
+    "p99Ms": 770,
+    "errors": 0,
+    "statuses": {
+      "200": 3188
+    },
+    "cpuPercent": 41.4,
+    "minFreeMB": 141,
+    "responseMB": 142.7,
+    "worker": {
+      "type": "stats",
+      "rssMB": 233,
+      "loopP95Ms": 79,
+      "loopMaxMs": 533,
+      "finished": 6137
+    },
+    "productionHealthMaxMs": 254,
+    "productionHealthOk": true
+  },
+  {
+    "scenario": "mixed-sync",
+    "users": 400,
+    "seconds": 18.9,
+    "requests": 4830,
+    "rps": 255,
+    "p50Ms": 1114,
+    "p95Ms": 2633,
+    "p99Ms": 2870,
+    "errors": 0,
+    "statuses": {
+      "200": 4830
+    },
+    "cpuPercent": 50.3,
+    "minFreeMB": 162,
+    "responseMB": 216.4,
+    "worker": {
+      "type": "stats",
+      "rssMB": 271,
+      "loopP95Ms": 383,
+      "loopMaxMs": 2028,
+      "finished": 10967
+    },
+    "productionHealthMaxMs": 704,
+    "productionHealthOk": true
+  },
+  {
+    "scenario": "login-burst",
+    "users": 1,
+    "requests": 1,
+    "elapsedMs": 89,
+    "p50Ms": 89,
+    "p95Ms": 89,
+    "errors": 0,
+    "statuses": [
+      200
+    ],
+    "cpuPercent": 49.7,
+    "freeMB": 209
+  },
+  {
+    "scenario": "login-burst",
+    "users": 5,
+    "requests": 5,
+    "elapsedMs": 311,
+    "p50Ms": 264,
+    "p95Ms": 311,
+    "errors": 0,
+    "statuses": [
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "cpuPercent": 89.9,
+    "freeMB": 271
+  },
+  {
+    "scenario": "login-burst",
+    "users": 10,
+    "requests": 10,
+    "elapsedMs": 540,
+    "p50Ms": 433,
+    "p95Ms": 540,
+    "errors": 0,
+    "statuses": [
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "cpuPercent": 95.9,
+    "freeMB": 282
+  },
+  {
+    "scenario": "login-burst",
+    "users": 20,
+    "requests": 20,
+    "elapsedMs": 1040,
+    "p50Ms": 1017,
+    "p95Ms": 1029,
+    "errors": 0,
+    "statuses": [
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "cpuPercent": 98.5,
+    "freeMB": 266
+  }
+]
