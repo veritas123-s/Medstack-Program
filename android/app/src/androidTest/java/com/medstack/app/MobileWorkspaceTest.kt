@@ -73,7 +73,7 @@ class MobileWorkspaceTest {
         compose.waitUntil(6000) { repository.state.tasks.any { it.title == "合成离线任务" } }
         compose.onNodeWithText("合成离线任务").assertIsDisplayed()
         screenshot("tasks")
-        compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Checkbox)).performClick()
+        compose.onNode(isToggleable()).performClick()
         compose.runOnIdle { assertTrue(repository.state.tasks.single().completed) }
         compose.onNodeWithText("合成离线任务").assertDoesNotExist()
         navigate("已完成")
