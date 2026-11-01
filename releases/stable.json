@@ -1,32 +1,31 @@
 {
   "schema": 1,
-  "version": "6.2.0",
-  "publishedAt": "2026-11-01T09:50:39.528Z",
-  "title": "医栈通 V6.2.0",
+  "version": "6.2.1",
+  "publishedAt": "2026-11-01T10:56:14.769Z",
+  "title": "医栈通 V6.2.1",
   "notes": [
-    "恢复 Android 持续更新，增加待办、逾期和已完成任务筛选及任务回收站。",
-    "安卓可输入 1–180 分钟的自定义专注时长。",
-    "同步期间的新修改保留，失败缓存最新内容，下载冲突由用户选择。",
-    "取消校园快讯及客户端采集，保留超星课程、作业与通知，历史缓存不删除。",
-    "增加教务考试查询与定时同步，明确起止时间的考试进入日程；安卓可筛选已同步考试。"
+    "修复教务考试表头兼容，按学校页面所选学年和学期识别无年份考试日期。",
+    "等待官方考试表格加载完成后同步，未完整读取时保留旧安排。",
+    "修正窗口标题仍显示旧版本的问题。",
+    "保留 V6.2 的安卓任务筛选、回收站、自定义专注和同步保护；校园快讯已取消。"
   ],
-  "urgent": false,
+  "urgent": true,
   "downloads": {
     "windows": {
-      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.2.0/Medstack-Setup-6.2.0-x64.exe",
-      "sha256": "c922cdd10dfc0c302de5840a14812089cf3a549da8ab686ca6b51d2ba47c3ab3"
+      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.2.1/Medstack-Setup-6.2.1-x64.exe",
+      "sha256": "970d97258d3c53bac25d7694f7f92cccc21458a94b994dd5b30e5e374daa958f"
     },
     "android": {
-      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.2.0/Medstack-6.2.0-Android.apk",
-      "sha256": "a6c7c08e2a520fafd641b76e4381fd9cf9637d110a5705f9b26459cc528846e0"
+      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.2.1/Medstack-6.2.1-Android.apk",
+      "sha256": "a0d2e38536a1c0905caf08095d706106bfa941f254dfc817f963af36450332a4"
     },
     "macos_x64": {
-      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.2.0/Medstack-6.2.0-macOS-x64.dmg",
-      "sha256": "74d424b7a41c3753ece28be1661049ba7067c027f5d4c4671c3f7ac3bc314512"
+      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.2.1/Medstack-6.2.1-macOS-x64.dmg",
+      "sha256": "20db7d5f29d8b2812ddc2a4b82ed7b4e80bab2578d46edd46297452651ec7c95"
     },
     "macos_arm64": {
-      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.2.0/Medstack-6.2.0-macOS-arm64.dmg",
-      "sha256": "d73001f331115e75dcfc21f96b34691b897bc2f3a6df1a29c87b69d5599d6392"
+      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.2.1/Medstack-6.2.1-macOS-arm64.dmg",
+      "sha256": "2a799f94a9211a86f97aa998354358f45c8d28b0c6fe25f6b39c322868ac06f3"
     }
   }
 }

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { verifyPackagedRenderer } from "./packaged-renderer.mjs";
 import {
   validateRelease,
   releaseFilename,
@@ -16,6 +17,10 @@ const directory = path.resolve(pkg.build.directories.output),
   assets = [],
   downloads = {};
 const platforms = notes.platforms || ["windows"];
+if (platforms.includes("windows"))
+  verifyPackagedRenderer(
+    path.join(directory, "win-unpacked/resources/app.asar"),
+  );
 if (
   !Array.isArray(platforms) ||
   !platforms.length ||
