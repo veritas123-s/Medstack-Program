@@ -288,9 +288,14 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onSave: (String, String, String
 @Composable
 private fun ScheduleScreen(ui: MedstackUiState) {
     val today = LocalDate.now().toString()
-    val items = ui.schedule.filter { it.end >= today }.take(60)
+    var examsOnly by rememberSaveable { mutableStateOf(false) }
+    val items = ui.schedule.filter { it.end >= today && (!examsOnly || it.title.startsWith("考试 · ")) }.take(60)
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text("课程和日程由电脑端及云同步汇总。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = !examsOnly, onClick = { examsOnly = false }, label = { Text("全部安排") })
+            FilterChip(selected = examsOnly, onClick = { examsOnly = true }, label = { Text("考试") })
+        } }
+        if (examsOnly) item { Text("电脑教务模块同步后，通过账号同步到手机。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
         items(items) { item -> ScheduleCard(item.title, item.start, item.end, item.location, item.kind) }
         if (items.isEmpty()) item { EmptyCard("未来暂无已同步的课程或日程。") }
     }

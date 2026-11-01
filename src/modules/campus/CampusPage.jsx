@@ -15,6 +15,7 @@ import {
 import { dayKey, addDays, monday } from "../../domain.mjs";
 import { Empty, Modal } from "../../components.jsx";
 import CalendarPage from "../notifications/CalendarPage.jsx";
+import ExamsPanel from "./ExamsPanel.jsx";
 const dateLabel = (s) =>
   new Date(`${s}T12:00:00`).toLocaleDateString("zh-CN", {
     month: "long",
@@ -179,6 +180,7 @@ export default function Campus({ state, call, setPage, widgetActions }) {
       <div className="tabs">
         {[
           ["courses", "我的课表", CalendarDays],
+          ["exams", "考试查询", CalendarDays],
           ["scores", "成绩查询", GraduationCap],
           ["rooms", "教室查询", DoorOpen],
         ].map(([id, label, Icon]) => (
@@ -202,6 +204,7 @@ export default function Campus({ state, call, setPage, widgetActions }) {
       {tab === "courses" && (
         <CalendarPage {...{ state, call, setPage, widgetActions }} embedded />
       )}
+      {tab === "exams" && <ExamsPanel state={state} call={call} />}
       {tab === "scores" && (
         <Panel className="panel">
           <div className="panel-heading">

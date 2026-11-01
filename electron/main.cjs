@@ -48,6 +48,7 @@ let win,
   bridge,
   assistant,
   learning,
+  exams,
   news,
   workflows,
   accounts,
@@ -71,6 +72,7 @@ const snapshot = () =>
         ...store.state,
         updates: updates?.status(),
         learning: learning?.status(),
+        exams: exams?.status(),
         news: news?.status(),
         workflows: workflows?.data,
         campusAuth: auth?.status(),
@@ -293,6 +295,7 @@ else {
         bridge?.onboarding?.stop();
         assistant?.cancel();
         news?.stop();
+        exams?.stop();
         if (learning) {
           learning.disconnected = true;
           learning.generation++;
@@ -317,6 +320,7 @@ else {
           learning.disconnected = false;
           personalReady = accounts.authenticated;
           if (!testMode && personalReady) news?.start();
+          if (!testMode && personalReady) exams?.start();
         }
         broadcast();
       }
@@ -410,6 +414,23 @@ else {
         changed: broadcast,
       });
       bridge = new BriefingBridge(dataDirectory);
+      const { ExamService, readExamPage } = await import("./exams.mjs");
+      exams = new ExamService({
+        directory: dataDirectory,
+        store,
+        changed: broadcast,
+        allowed: () => accounts.authenticated && personalReady,
+        readPage: () =>
+          readExamPage({
+            BrowserWindow,
+            session: schoolSession,
+            restore: async () => {
+              if (!auth.status().hasSession)
+                throw Error("请先在校园模块完成学校登录");
+            },
+            allowed: () => accounts.authenticated && personalReady,
+          }),
+      });
       const { AssistantService } = await import("./assistant-service.mjs");
       assistant = new AssistantService({
         directory: dataDirectory,
@@ -490,6 +511,7 @@ else {
         assistant,
         learning,
         news,
+        exams,
         workflows,
         dialog,
         shell,
@@ -642,6 +664,7 @@ else {
     });
   app.on("before-quit", (event) => {
     news?.stop();
+    exams?.stop();
     accountSync?.stop();
     bridge?.onboarding?.stop();
     quitting = true;

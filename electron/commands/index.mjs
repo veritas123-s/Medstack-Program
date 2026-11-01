@@ -119,6 +119,8 @@ export function createCommandRouter(context) {
         names: [
           "school.courses",
           "school.scores",
+          "school.exams",
+          "school.exams.open",
           "school.detail",
           "school.rooms.options",
           "school.rooms",

@@ -1,4 +1,11 @@
 export default async function execute(action, p, context) {
+  if (action === "school.exams") return context.exams.sync();
+  if (action === "school.exams.open") {
+    const { EXAM_VPN_URL } = await import("../exams.mjs");
+    const win = await context.auth.open(true);
+    await win.loadURL(EXAM_VPN_URL);
+    return { ok: true };
+  }
   const {
     store,
     domain,
