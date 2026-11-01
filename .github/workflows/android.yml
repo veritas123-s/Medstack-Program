@@ -3,7 +3,7 @@ name: Android build
 on:
   workflow_dispatch:
   push:
-    branches: [codex/medstack-cross-platform]
+    branches: [main]
     paths:
       [
         "android/**",

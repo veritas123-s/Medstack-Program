@@ -5,7 +5,6 @@ import {
   courseCoverage,
 } from "../../calendar.mjs";
 import { beijingDay } from "../../briefing.mjs";
-import { recentNews, groupNews } from "../../news-window.mjs";
 export function overview(state, now = Date.now()) {
   const day = beijingDay(now),
     a = agenda(state, state.learning, now);
@@ -34,40 +33,9 @@ export function overview(state, now = Date.now()) {
     calendarEvents(state, { showTasks: false, showCompleted: false }),
     day,
   );
-  const recent = recentNews(state.news?.items || [], now);
-  const relevant = [...recent.groups, ...recent.uncertainGroups].flatMap(
-    (g) => g.items,
-  );
-  const rows = [
-    ...new Map(
-      [
-        ...relevant,
-        ...(state.news?.items || []).filter(
-          (x) => !x.deletedAt && x.activityDate === day,
-        ),
-      ].map((x) => [x.id, x]),
-    ).values(),
-  ];
-  const news = groupNews(rows).map((group) => {
-    const x = group.items[0],
-      sources = [
-        ...new Set(group.items.map((item) => item.source).filter(Boolean)),
-      ];
-    return {
-      ...x,
-      id: "news:" + group.id,
-      kind: "news",
-      time: x.publishedAt || x.updatedAt,
-      subtitle:
-        sources.length > 1
-          ? `${sources[0]}等 ${sources.length} 个来源`
-          : x.source,
-    };
-  });
-  const notices = [
-    ...a.entries.filter((x) => x.kind === "notice"),
-    ...news,
-  ].sort((a, b) => (b.time || 0) - (a.time || 0));
+  const notices = a.entries
+    .filter((x) => x.kind === "notice")
+    .sort((a, b) => (b.time || 0) - (a.time || 0));
   return {
     day,
     tasks,

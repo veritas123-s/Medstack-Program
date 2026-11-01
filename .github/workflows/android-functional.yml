@@ -2,7 +2,7 @@ name: Medstack Android workspace verification
 on:
   workflow_dispatch:
   push:
-    branches: [codex/medstack-cross-platform]
+    branches: [main]
     paths: ["android/**", ".github/workflows/android-functional.yml", "scripts/android-workspace-smoke.sh"]
 permissions:
   contents: read

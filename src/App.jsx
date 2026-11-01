@@ -311,20 +311,6 @@ export default function App() {
                   <span>{label}</span>
                 </button>
               ))}
-            {visibleNav.some(([id]) => id === "campus-news") && (
-              <button
-                className={`nav-item news-direct-nav ${page === "campus-news" ? "active" : ""}`}
-                aria-label="校园快讯"
-                aria-current={page === "campus-news" ? "page" : undefined}
-                onClick={() => {
-                  setPage("campus-news");
-                  setGroupMenu(null);
-                }}
-              >
-                <Newspaper size={18} />
-                <span>校园快讯</span>
-              </button>
-            )}
             {NAV_GROUPS.map((group) => (
               <React.Fragment key={group.id}>
                 {group.id !== "news" &&

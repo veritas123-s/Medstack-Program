@@ -18,8 +18,8 @@ android {
         applicationId = "com.medstack.app"
         minSdk = 28
         targetSdk = 36
-        versionCode = 614
-        versionName = "6.1.4"
+        versionCode = 620
+        versionName = "6.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "ACCOUNT_BASE_URL", "\"https://122.51.44.155\"")
     }

@@ -43,7 +43,7 @@ test("首页仅展示未删除未完成任务和当日课程事件，缺课表�
   );
   assert.equal(v.coverage.status, "missing");
 });
-test("校园卡片排除删除内容及非当日活动", () => {
+test("取消快讯后首页不显示任何公开资讯", () => {
   const s = initialState();
   s.news = {
     items: [
@@ -64,7 +64,7 @@ test("校园卡片排除删除内容及非当日活动", () => {
   };
   assert.deepEqual(
     overview(s, now).notices.map((x) => x.title),
-    ["当日活动"],
+    [],
   );
 });
 test("旧学习通作业关联任务不进入首页，刷新不复活已删除通知", () => {
@@ -99,7 +99,7 @@ test("旧学习通作业关联任务不进入首页，刷新不复活已删除�
   assert.ok(!v.notices.some((x) => x.title === "已删通知"));
 });
 
-test("首页校园快讯合并学习通通知和最近公开资讯，删除仍隐藏", () => {
+test("取消快讯后保留学习通通知", () => {
   const s = initialState();
   s.learning = {
     items: [
@@ -130,11 +130,11 @@ test("首页校园快讯合并学习通通知和最近公开资讯，删除仍�
   };
   assert.deepEqual(
     new Set(overview(s, now).notices.map((x) => x.title)),
-    new Set(["学习通消息", "公开资讯"]),
+    new Set(["学习通消息"]),
   );
 });
 
-test("首页公开快讯合并同标题多来源", () => {
+test("取消快讯后忽略历史多来源公开资讯", () => {
   const s = initialState();
   s.news = {
     items: [
@@ -153,6 +153,5 @@ test("首页公开快讯合并同标题多来源", () => {
     ],
   };
   const rows = overview(s, now).notices;
-  assert.equal(rows.length, 1);
-  assert.match(rows[0].subtitle, /2 个来源/);
+  assert.equal(rows.length, 0);
 });

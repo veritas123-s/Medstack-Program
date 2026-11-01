@@ -7,6 +7,8 @@ import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -40,6 +42,7 @@ data class MedstackUiState(
     val pendingEmail: String = "",
     val document: JSONObject? = null,
     val tasks: List<MobileTask> = emptyList(),
+    val deletedTasks: List<MobileTask> = emptyList(),
     val schedule: List<ScheduleItem> = emptyList(),
     val remoteVersion: Int = 0,
     val syncPhase: String = "idle",
@@ -55,12 +58,20 @@ data class MedstackUiState(
     val newsError: String = "",
 )
 
-class MedstackRepository(context: Context) {
+interface MobileSyncTransport {
+    fun pull(): JSONObject
+    fun push(version: Int, document: JSONObject): JSONObject
+}
+
+class MedstackRepository(context: Context, private val syncTransport: MobileSyncTransport? = null) {
     private val appContext = context.applicationContext
     private val secureStore = SecureStore(appContext)
     private val api = AccountApi(secureStore)
     private val newsCache = MobileNewsCache(appContext)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var syncJob: Job? = null
+    private var sessionEpoch = 0L
+    private var editRevision = 0L
     private val defaultDocument by lazy {
         appContext.assets.open("default-cloud-document.json").bufferedReader().use {
             JSONObject(it.readText())
@@ -191,6 +202,7 @@ class MedstackRepository(context: Context) {
     }
 
     private fun acceptUser(response: JSONObject) {
+        sessionEpoch++
         val user = userObject(response) ?: throw ApiException("账号信息无效", 502)
         val publicUser = JSONObject()
             .put("id", user.optString("id"))
@@ -216,24 +228,7 @@ class MedstackRepository(context: Context) {
         ?.let { runCatching { JSONObject(it).optString("id") }.getOrDefault("") }
         .orEmpty()
 
-    fun syncSharedNews() {
-        val uid = currentUserId()
-        if (uid.isBlank() || state.newsBusy || !api.hasSession()) return
-        emit(state.copy(newsBusy = true, newsError = ""))
-        scope.launch {
-            try {
-                val news = withContext(Dispatchers.IO) { MobileNewsCache.validate(api.sharedNews()) }
-                if (currentUserId() != uid) return@launch
-                withContext(Dispatchers.IO) { newsCache.save(uid, news) }
-                if (currentUserId() != uid) return@launch
-                emit(state.copy(news = news, newsReceivedElapsed = android.os.SystemClock.elapsedRealtime(), newsBusy = false, newsError = ""))
-            } catch (error: Exception) {
-                if (currentUserId() != uid) return@launch
-                if (error is ApiException && error.status == 401) logoutLocal()
-                else emit(state.copy(newsBusy = false, newsError = "暂时无法同步服务器快讯，已保留历史消息"))
-            }
-        }
-    }
+    fun syncSharedNews() {} // Campus news retired; do not request the server.
 
     private fun cache(document: JSONObject, version: Int, dirty: Boolean) {
         val uid = userId()
@@ -244,10 +239,19 @@ class MedstackRepository(context: Context) {
     }
 
     private suspend fun pullFromCloud() {
+        val uid = currentUserId()
+        if (uid.isBlank()) return
+        val epoch = sessionEpoch
+        val revision = editRevision
         emit(state.copy(syncPhase = "syncing", message = ""))
         try {
-            val result = withContext(Dispatchers.IO) { api.pull() }
+            val result = withContext(Dispatchers.IO) { syncTransport?.pull() ?: api.pull() }
+            if (epoch != sessionEpoch || currentUserId() != uid) return
             val version = result.optInt("version", 0)
+            if (revision != editRevision) {
+                emit(state.copy(syncPhase = "conflict", conflictVersion = version, dirty = true, message = "同步期间有新修改，请选择保留版本"))
+                return
+            }
             val document = if (result.isNull("document")) JSONObject(defaultDocument.toString())
             else JSONObject(result.getJSONObject("document").toString())
             cache(document, version, false)
@@ -266,45 +270,67 @@ class MedstackRepository(context: Context) {
                 ),
             )
         } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            if (epoch != sessionEpoch || currentUserId() != uid) return
+            if (error is ApiException && error.status == 401) { logoutLocal(); return }
             emit(state.copy(loading = false, syncPhase = "offline", message = error.message ?: "同步失败"))
         }
     }
 
     fun syncNow() {
-        if (!state.authenticated) return
-        scope.launch {
+        if (!state.authenticated || syncJob?.isActive == true) return
+        syncJob = scope.launch {
             val current = state
             val document = current.document
             if (current.dirty && document != null) pushDocument(document) else pullFromCloud()
+            while (state.authenticated && state.dirty && state.syncPhase == "pending") {
+                val latest = state.document ?: break
+                pushDocument(latest)
+            }
         }
     }
 
     private suspend fun pushDocument(document: JSONObject, version: Int = state.remoteVersion) {
+        val uid = currentUserId()
+        if (uid.isBlank()) return
+        val epoch = sessionEpoch
+        val revision = editRevision
+        val snapshot = JSONObject(document.toString())
         emit(state.copy(syncPhase = "syncing", message = ""))
         try {
-            val result = withContext(Dispatchers.IO) { api.push(version, document) }
+            val result = withContext(Dispatchers.IO) { syncTransport?.push(version, snapshot) ?: api.push(version, snapshot) }
+            if (epoch != sessionEpoch || currentUserId() != uid) return
             if (result.optBoolean("conflict")) {
                 val conflict = result.optInt("version", version)
                 emit(state.copy(syncPhase = "conflict", conflictVersion = conflict, dirty = true, message = "云端已有更新，请选择保留版本"))
                 return
             }
             val nextVersion = result.getInt("version")
-            cache(document, nextVersion, false)
-            emit(state.copy(remoteVersion = nextVersion, dirty = false, conflictVersion = null, syncPhase = "synced", message = "已同步到电脑端"))
+            val changed = revision != editRevision
+            cache(state.document ?: snapshot, nextVersion, changed)
+            emit(state.copy(remoteVersion = nextVersion, dirty = changed, conflictVersion = null, syncPhase = if (changed) "pending" else "synced", message = if (changed) "正在同步新修改" else "已同步到电脑端"))
         } catch (error: Exception) {
-            cache(document, state.remoteVersion, true)
+            if (error is CancellationException) throw error
+            if (epoch != sessionEpoch || currentUserId() != uid) return
+            if (error is ApiException && error.status == 401) { logoutLocal(); return }
+            cache(state.document ?: snapshot, state.remoteVersion, true)
             emit(state.copy(dirty = true, syncPhase = "offline", message = "已保存在手机，联网后可重试同步"))
         }
     }
 
     fun keepCloudVersion() {
-        scope.launch { pullFromCloud() }
+        if (!state.authenticated || syncJob?.isActive == true) return
+        syncJob = scope.launch { pullFromCloud() }
     }
 
     fun keepPhoneVersion() {
+        if (!state.authenticated || syncJob?.isActive == true) return
         val document = state.document ?: return
         val version = state.conflictVersion ?: return
-        scope.launch { pushDocument(document, version) }
+        syncJob = scope.launch {
+            pushDocument(document, version)
+            while (state.authenticated && state.dirty && state.syncPhase == "pending") pushDocument(state.document ?: break)
+        }
     }
 
     fun saveTask(title: String, due: String, quadrant: String) {
@@ -349,7 +375,10 @@ class MedstackRepository(context: Context) {
         task.put("deletedAt", System.currentTimeMillis())
     }
 
+    fun restoreTask(id: String) = mutateTask(id) { task -> task.put("deletedAt", JSONObject.NULL) }
+
     private fun mutateTask(id: String, action: (JSONObject) -> Unit) {
+        if (!state.authenticated) return
         val document = state.document?.let { JSONObject(it.toString()) } ?: return
         val tasks = document.getJSONArray("tasks")
         for (index in 0 until tasks.length()) {
@@ -363,7 +392,9 @@ class MedstackRepository(context: Context) {
     }
 
     fun startFocus(minutes: Int) {
-        val duration = minutes.coerceIn(1, 180) * 60_000L
+        if (!state.authenticated || state.focusStartedAt != null) return
+        if (minutes !in 1..180) { emit(state.copy(message = "专注时长为 1–180 分钟")); return }
+        val duration = minutes * 60_000L
         val now = System.currentTimeMillis()
         emit(state.copy(focusStartedAt = now, focusUntil = now + duration, clock = now, message = "专注已开始"))
     }
@@ -402,18 +433,24 @@ class MedstackRepository(context: Context) {
     }
 
     private fun updateAndPush(document: JSONObject) {
+        if (!state.authenticated) return
+        editRevision++
         cache(document, state.remoteVersion, true)
-        emit(documentState(state.copy(document = document, dirty = true, syncPhase = "syncing", message = ""), document))
-        scope.launch { pushDocument(document) }
+        emit(documentState(state.copy(document = document, dirty = true, message = ""), document))
+        if (state.conflictVersion == null) syncNow()
     }
 
     private fun documentState(base: MedstackUiState, document: JSONObject?): MedstackUiState {
-        if (document == null) return base.copy(tasks = emptyList(), schedule = emptyList())
+        if (document == null) return base.copy(tasks = emptyList(), deletedTasks = emptyList(), schedule = emptyList())
+        val deleted = mutableListOf<MobileTask>()
         val tasks = buildList {
             val array = document.optJSONArray("tasks") ?: JSONArray()
             for (index in 0 until array.length()) {
                 val task = array.optJSONObject(index) ?: continue
-                if (!task.isNull("deletedAt")) continue
+                if (!task.isNull("deletedAt")) {
+                    deleted.add(MobileTask(task.optString("id"), task.optString("title"), task.optString("project"), task.optString("due"), task.optString("dueTime"), task.optString("quadrant", "plan"), !task.isNull("completedAt")))
+                    continue
+                }
                 add(
                     MobileTask(
                         id = task.optString("id"),
@@ -440,7 +477,7 @@ class MedstackRepository(context: Context) {
                 add(ScheduleItem(event.optString("title"), event.optString("start"), event.optString("end"), event.optString("location"), "日程"))
             }
         }.sortedBy { it.start }
-        return base.copy(tasks = tasks, schedule = schedule)
+        return base.copy(tasks = tasks, deletedTasks = deleted, schedule = schedule)
     }
 
     fun currentUserId(): String = if (state.authenticated) userId() else ""
@@ -478,6 +515,8 @@ class MedstackRepository(context: Context) {
     }
 
     private fun logoutLocal() {
+        sessionEpoch++
+        syncJob?.cancel()
         secureStore.clearSession()
         emit(MedstackUiState(loading = false))
     }

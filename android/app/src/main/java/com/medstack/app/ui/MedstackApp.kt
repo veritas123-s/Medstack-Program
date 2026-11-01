@@ -45,6 +45,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.FilterChip
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.rememberCoroutineScope
@@ -74,7 +76,7 @@ import java.time.LocalDate
 import kotlinx.coroutines.delay
 
 private enum class MobilePage(val title: String) {
-    Today("今日"), Tasks("任务"), Schedule("日程"), Focus("专注"), More("更多"), News("校园快讯"), Assistant("Poseidon"), Connection("账号与设置")
+    Today("今日"), Tasks("任务"), Schedule("日程"), Focus("专注"), More("更多"), Assistant("Poseidon"), Connection("账号与设置")
 }
 
 @Composable
@@ -90,15 +92,12 @@ fun MedstackApp(ui: MedstackUiState, repository: MedstackRepository) {
         return
     }
     var page by remember { mutableStateOf(MobilePage.Today) }
-    LaunchedEffect(ui.email) {
-        while (true) { repository.syncSharedNews(); delay(60000) }
-    }
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
                 listOf(MobilePage.Today, MobilePage.Tasks, MobilePage.Schedule, MobilePage.Focus, MobilePage.More).forEach { item ->
                     NavigationBarItem(
-                        selected = page == item || (item == MobilePage.More && page in listOf(MobilePage.Assistant, MobilePage.Connection, MobilePage.News)),
+                        selected = page == item || (item == MobilePage.More && page in listOf(MobilePage.Assistant, MobilePage.Connection)),
                         onClick = { page = item },
                         icon = { NavigationIcon(item) },
                         label = { Text(item.title) },
@@ -109,7 +108,7 @@ fun MedstackApp(ui: MedstackUiState, repository: MedstackRepository) {
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             MobileHeader(ui, page, repository)
-            if (page in listOf(MobilePage.Assistant, MobilePage.Connection, MobilePage.News)) {
+            if (page in listOf(MobilePage.Assistant, MobilePage.Connection)) {
                 TextButton({ page = MobilePage.More }, modifier = Modifier.padding(horizontal = 12.dp)) { Text("返回更多") }
             }
             UpdateBanner(updateStatus){updateStatus.release?.let{updateStatus=updates.dismiss(it)}}
@@ -127,7 +126,6 @@ fun MedstackApp(ui: MedstackUiState, repository: MedstackRepository) {
                 MobilePage.Schedule -> ScheduleScreen(ui)
                 MobilePage.Focus -> FocusScreen(ui, repository)
                 MobilePage.More -> MoreScreen { page = it }
-                MobilePage.News -> MobileNewsScreen(ui, repository)
                 MobilePage.Assistant -> AssistantScreen(repository)
                 MobilePage.Connection -> ConnectionScreen(ui, repository, updateStatus, checkUpdates, updates)
             }
@@ -215,10 +213,32 @@ private fun TodayScreen(ui: MedstackUiState, repository: MedstackRepository) {
 @Composable
 private fun TasksScreen(ui: MedstackUiState, repository: MedstackRepository) {
     var adding by remember { mutableStateOf(false) }
+    var filter by rememberSaveable { mutableStateOf("active") }
+    val today = LocalDate.now().toString()
+    val visible = when (filter) {
+        "completed" -> ui.tasks.filter { it.completed }
+        "overdue" -> ui.tasks.filter { !it.completed && it.due.isNotBlank() && it.due < today }
+        "trash" -> ui.deletedTasks
+        else -> ui.tasks.filter { !it.completed }
+    }
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Button({ adding = true }, modifier = Modifier.fillMaxWidth()) { Text("添加任务") } }
-        items(ui.tasks, key = { it.id }) { task -> TaskRow(task, repository) }
-        if (ui.tasks.isEmpty()) item { EmptyCard("从手机或电脑新建第一项任务。") }
+        item {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("active" to "待办", "overdue" to "逾期", "completed" to "已完成", "trash" to "回收站").forEach { (id, label) ->
+                    FilterChip(selected = filter == id, onClick = { filter = id }, label = { Text(label) })
+                }
+            }
+        }
+        items(visible, key = { it.id }) { task ->
+            if (filter == "trash") Card(Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(task.title, Modifier.weight(1f))
+                    TextButton({ repository.restoreTask(task.id) }) { Text("恢复") }
+                }
+            } else TaskRow(task, repository)
+        }
+        if (visible.isEmpty()) item { EmptyCard("暂无任务") }
     }
     if (adding) AddTaskDialog(onDismiss = { adding = false }) { title, due, quadrant ->
         repository.saveTask(title, due, quadrant)
@@ -260,7 +280,7 @@ private fun AddTaskDialog(onDismiss: () -> Unit, onSave: (String, String, String
                 }
             }
         },
-        confirmButton = { Button({ onSave(title, due, quadrant) }) { Text("保存") } },
+        confirmButton = { Button({ onSave(title, due, quadrant) }, enabled = title.isNotBlank() && (due.isBlank() || runCatching { LocalDate.parse(due) }.isSuccess)) { Text("保存") } },
         dismissButton = { TextButton(onDismiss) { Text("取消") } },
     )
 }
@@ -291,6 +311,7 @@ private fun ScheduleCard(title: String, start: String, end: String, location: St
 @Composable
 private fun FocusScreen(ui: MedstackUiState, repository: MedstackRepository) {
     var minutes by remember { mutableIntStateOf(25) }
+    var customMinutes by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(ui.focusStartedAt) {
         while (ui.focusStartedAt != null) {
             delay(1000)
@@ -311,7 +332,9 @@ private fun FocusScreen(ui: MedstackUiState, repository: MedstackRepository) {
                 }
             }
             Spacer(Modifier.height(20.dp))
-            Button({ repository.startFocus(minutes) }, modifier = Modifier.fillMaxWidth()) { Text("开始专注") }
+            OutlinedTextField(customMinutes, { customMinutes = it.take(3).filter(Char::isDigit) }, label = { Text("自定义分钟（1–180）") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(12.dp))
+            Button({ repository.startFocus(customMinutes.toIntOrNull() ?: minutes) }, enabled = customMinutes.isBlank() || customMinutes.toIntOrNull() in 1..180, modifier = Modifier.fillMaxWidth()) { Text("开始专注") }
         } else {
             Button({ repository.finishFocus(false) }, modifier = Modifier.fillMaxWidth()) { Text("结束并保存") }
         }
@@ -362,14 +385,6 @@ private fun SectionTitle(text: String) { Text(text, style = MaterialTheme.typogr
 @Composable
 private fun MoreScreen(open: (MobilePage) -> Unit) {
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
-            Card(onClick = { open(MobilePage.News) }, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("校园快讯", style = MaterialTheme.typography.titleLarge)
-                    Text("公众号与学校消息 · 每小时整点刷新", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
         item {
             Card(onClick = { open(MobilePage.Assistant) }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

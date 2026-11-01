@@ -477,27 +477,9 @@ else {
         bridge.status.local = "error";
       }
       const { createCommandRouter } = await import("./commands/index.mjs");
-      const { NewsService } = await import("./news-service.mjs");
-      const { openNewsReader } = await import("./news-reader.mjs");
-      news = new NewsService({
-        sharedFetcher: () => accountProvider.call("/api/news/shared", undefined, { authenticated: true }),
-        nativeImage,
-        directory: dataDirectory,
-        openReader: (url) => openNewsReader(BrowserWindow, url),
-        fetcher: (...args) => fetch(...args),
-        allowed: () => accounts.authenticated && personalReady,
-        changed: () => {
-          broadcast();
-          if (accounts.authenticated && personalReady)
-            try {
-              bridge.export(store.state);
-            } catch {}
-        },
-        summarize: (items, coverage) =>
-          assistant.summarizeNews(items, coverage),
-      });
-      bridge.getNews = () =>
-        bridge.onboarding?.config.plan?.runtimeHash ? news.status() : null;
+      const { retiredNews } = await import("./retired-news.mjs");
+      news = retiredNews();
+      bridge.getNews = () => null;
       commandRouter = createCommandRouter({
         themeAssets,
         store,

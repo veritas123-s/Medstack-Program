@@ -167,9 +167,9 @@ export default function DashboardPage({
         </Panel>
         <Panel
           className="panel overview-card overview-notices"
-          title="校园快讯"
+          title="超星通知"
         >
-          {heading("校园快讯", "campus-news", Bell)}
+          {heading("超星通知", "learning", Bell)}
           <div className="overview-card-list">
             {model.notices.map((e) => (
               <Row

@@ -16,25 +16,11 @@ import {
 import { beijingDay } from "../../briefing.mjs";
 import CloudConnection from "./CloudConnection.jsx";
 import LinkedText from "../../shared/LinkedText.jsx";
-import RecentNews from "../news/RecentNews.jsx";
 
 export default function Briefing({ state, call }) {
   const [data, setData] = useState(null),
     [date, setDate] = useState(beijingDay()),
-    [busy, setBusy] = useState(false),
-    [collectionError, setCollectionError] = useState("");
-  const collectLatest = async () => {
-    setBusy(true);
-    setCollectionError("");
-    try {
-      await call("news.collect", { windowHours: 24 });
-      setData(await call("briefing.export", { date }));
-    } catch (error) {
-      setCollectionError(error.message);
-    } finally {
-      setBusy(false);
-    }
-  };
+    [busy, setBusy] = useState(false);
   const refresh = async (force = false) => {
     setBusy(true);
     try {
@@ -67,14 +53,6 @@ export default function Briefing({ state, call }) {
         <div className="heading-actions">
           <button
             className="button primary"
-            disabled={busy || state.news?.busy}
-            onClick={collectLatest}
-          >
-            <RefreshCw size={16} />
-            {state.news?.busy ? "采集中…" : "采集最新信息"}
-          </button>
-          <button
-            className="button primary"
             disabled={busy}
             onClick={() => refresh(true)}
           >
@@ -83,12 +61,6 @@ export default function Briefing({ state, call }) {
           </button>
         </div>
       </div>
-      {collectionError && (
-        <p className="error" role="alert">
-          {collectionError}
-        </p>
-      )}
-      <RecentNews news={state.news} call={call} defaultCollapsed />
       <details className="dispatch-details">
         <summary>同步状态</summary>
         <div className="dispatch-route">

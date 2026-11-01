@@ -27,8 +27,7 @@ export default async function execute(
     }
     const organization = followIntent(p.text);
     if (organization) {
-      news.follow({ name: organization });
-      await assistant.followReply(p.text, organization);
+      await assistant.actionReply(p.text, "校园快讯已取消，不能再关注公众号。");
       broadcast();
       return assistant.status(store.state);
     }

@@ -1,5 +1,6 @@
 import { newsURL } from "../news-service.mjs";
 export default async function execute(action, p, { news, shell }) {
+  throw Error("校园快讯已取消，历史缓存保留在本机");
   if (action === "news.image") return news.image(p);
   if (action === "news.collect") return news.collect(p);
   if (action === "news.configure") return news.configure(p);

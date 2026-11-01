@@ -14,6 +14,8 @@ import org.json.JSONObject
 import org.json.JSONArray
 import android.os.SystemClock
 import com.medstack.app.data.MobileNewsCache
+import com.medstack.app.data.MobileSyncTransport
+import com.medstack.app.data.ApiException
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -45,6 +47,11 @@ class MobileWorkspaceTest {
         compose.runOnIdle {
             val field = MainActivity::class.java.getDeclaredField("repository").apply { isAccessible = true }
             repository = field.get(compose.activity) as MedstackRepository
+            val transport = MedstackRepository::class.java.getDeclaredField("syncTransport").apply { isAccessible = true }
+            transport.set(repository, object : MobileSyncTransport {
+                override fun pull(): JSONObject = throw ApiException("合成离线", 503)
+                override fun push(version: Int, document: JSONObject): JSONObject = throw ApiException("合成离线", 503)
+            })
             secure = SecureStore(compose.activity)
             // No token is installed: authenticated requests fail locally, without reaching production.
             secure.clearSession()
@@ -68,51 +75,33 @@ class MobileWorkspaceTest {
         screenshot("tasks")
         compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Checkbox)).performClick()
         compose.runOnIdle { assertTrue(repository.state.tasks.single().completed) }
+        compose.onNodeWithText("合成离线任务").assertDoesNotExist()
+        navigate("已完成")
+        compose.onNodeWithText("合成离线任务").assertIsDisplayed()
         compose.onNodeWithText("删除").performClick()
         compose.runOnIdle {
             assertTrue(repository.state.tasks.isEmpty())
             assertFalse(repository.state.document!!.getJSONArray("tasks").getJSONObject(0).isNull("deletedAt"))
         }
+        navigate("回收站")
+        compose.onNodeWithText("合成离线任务").assertIsDisplayed()
+        compose.onNodeWithText("恢复").performClick()
+        compose.runOnIdle { assertEquals(1, repository.state.tasks.size); assertTrue(repository.state.deletedTasks.isEmpty()) }
+        navigate("已完成")
+        compose.onNodeWithText("删除").performClick()
         navigate("日程")
         compose.onNodeWithText("合成日程").assertIsDisplayed()
         screenshot("schedule")
         navigate("专注")
+        compose.onNodeWithText("自定义分钟（1–180）").performTextInput("37")
         compose.onNodeWithText("开始专注").performClick()
+        compose.runOnIdle { assertEquals(37 * 60000L, repository.state.focusUntil!! - repository.state.focusStartedAt!!) }
         Thread.sleep(1300)
         compose.onNodeWithText("结束并保存").performClick()
         compose.runOnIdle { assertEquals(1, repository.state.document!!.getJSONArray("logs").length()) }
         screenshot("focus")
         navigate("更多")
-        compose.runOnIdle {
-            val serverNow = System.currentTimeMillis() + 9 * 3600000L
-            val news = JSONObject().put("version", 1).put("serverNow", serverNow).put("nextRunAt", serverNow + 8000)
-                .put("sources", JSONArray().put("上海交通大学"))
-                .put("coverage", JSONArray().put(JSONObject().put("source", "上海交通大学").put("status", "unavailable").put("note", "合成失败来源")))
-                .put("items", JSONArray().put(JSONObject().put("id", "synthetic-news").put("title", "合成校园消息").put("source", "上海交通大学")
-                    .put("url", "https://mp.weixin.qq.com/s/synthetic").put("excerpt", "合成摘要").put("publishedAt", serverNow - 1000)))
-            val cached = MobileNewsCache(compose.activity)
-            cached.save(uid, MobileNewsCache.validate(news))
-            assertEquals("合成校园消息", cached.read(uid)!!.getJSONArray("items").getJSONObject(0).getString("title"))
-            assertNull(cached.read("another-synthetic-account"))
-            assertFalse(MobileNewsCache.safeURL("https://mp.weixin.qq.com.evil.invalid/"))
-            assertFalse(MobileNewsCache.safeURL("http://127.0.0.1/"))
-            val emit = MedstackRepository::class.java.getDeclaredMethod("emit", MedstackUiState::class.java).apply { isAccessible = true }
-            emit.invoke(repository, repository.state.copy(news = news, newsReceivedElapsed = SystemClock.elapsedRealtime()))
-        }
-        navigate("校园快讯")
-        compose.onNodeWithText("距下次刷新 00:00:", substring = true).assertIsDisplayed()
-        screenshot("news-countdown")
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("合成校园消息"))
-        compose.onNodeWithText("合成校园消息").assertIsDisplayed()
-        screenshot("news-article")
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("查看来源状态"))
-        compose.onNodeWithText("查看来源状态").performClick()
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("合成失败来源", substring = true))
-        compose.onNodeWithText("合成失败来源", substring = true).assertIsDisplayed()
-        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(0)
-        compose.waitUntil(15000) { compose.onAllNodesWithText("等待服务器刷新结果").fetchSemanticsNodes().isNotEmpty() }
-        screenshot("news-refresh-pending")
-        compose.onNodeWithText("返回更多").performClick()
+        compose.onNodeWithText("校园快讯").assertDoesNotExist()
         navigate("Poseidon")
         compose.onNodeWithText("自己的 API 密钥").performScrollTo().assertIsDisplayed()
         screenshot("assistant")
