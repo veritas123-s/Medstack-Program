@@ -41,6 +41,57 @@ test("考试表格读取明确时间，缺失起止不猜测，无表格不冒�
     [],
   );
 });
+test("学校考试课程表头和无年份日期使用明确的学年学期，跨年不取电脑当前年", () => {
+  const snapshot = {
+    text: "考试安排",
+    academicYear: "2024-2025学年",
+    semester: "第一学期",
+    tables: [
+      {
+        rows: [
+          ["周次", "考试时间", "考试课程", "考试类型", "考场教室"],
+          [
+            "8",
+            "10月17日(周四)09:00--10:30",
+            "合成课程甲",
+            "理论考试",
+            "西区合成教室",
+          ],
+          [
+            "18",
+            "1月10日(周五)13:00--14:30",
+            "合成课程乙",
+            "理论考试",
+            "东区合成教室",
+          ],
+        ],
+      },
+    ],
+  };
+  const items = parseExamTables(snapshot);
+  assert.equal(items[0].start, "2024-10-17T09:00");
+  assert.equal(items[1].start, "2025-01-10T13:00");
+  assert.equal(items[0].dateSource, "academic-year");
+  assert.equal(
+    parseExamTables({ ...snapshot, academicYear: "" })[0].start,
+    undefined,
+  );
+  const next = parseExamTables({ ...snapshot, academicYear: "2025-2026学年" });
+  assert.notEqual(next[0].id, items[0].id);
+});
+test("学校空表提示可识别，分页未完整读取不清空旧安排", () => {
+  assert.deepEqual(
+    parseExamTables({
+      text: "考试安排 总共0条记录",
+      tables: [{ rows: [["考试课程", "考试时间"], ["没有找到匹配的记录"]] }],
+    }),
+    [],
+  );
+  assert.throws(
+    () => parseExamTables({ ...page(), text: "考试安排 总共12条记录" }),
+    /部分考试/,
+  );
+});
 test("重复同步不重复日程，手工修改和删除不会被覆盖；确切旧安排撤下", () => {
   const items = parseExamTables(page()),
     state = { events: [] };

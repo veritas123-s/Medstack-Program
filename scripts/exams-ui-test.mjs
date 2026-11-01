@@ -32,7 +32,7 @@ try {
       "https",
       () =>
         new Response(
-          '<!doctype html><meta charset="utf-8"><h1>考试安排</h1><table><tr><th>课程名称</th><th>考试时间</th><th>考试地点</th></tr><tr><td>合成考试课程</td><td>2026-11-10 09:00–11:00</td><td>西区合成教室</td></tr></table>',
+          '<!doctype html><meta charset="utf-8"><h1>考试安排</h1><select id="Grade"><option selected>2024-2025学年</option></select><select id="Semester"><option selected>第一学期</option></select><table><tr><th>考试课程</th><th>考试时间</th><th>考试地点</th></tr><tr><td>合成考试课程</td><td>10月17日(周四)09:00--10:30</td><td>西区合成教室</td></tr></table>',
           { headers: { "Content-Type": "text/html;charset=utf-8" } },
         ),
     );
@@ -47,6 +47,7 @@ try {
     state.events.filter((x) => x.calendarUid.startsWith("school-exam:")).length,
     1,
   );
+  assert.equal(state.exams.items[0].start, "2024-10-17T09:00");
   const exam = state.events.find((x) =>
     x.calendarUid.startsWith("school-exam:"),
   );
