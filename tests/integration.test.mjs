@@ -214,6 +214,12 @@ test("认证失效只重试一次、网络错误不自动登录", async () => {
     a.request("https://webvpn2.shsmu.edu.cn", "/test"),
   );
   assert.equal(renews, 1);
+  session.fetch = async () => new Response("<h1>教务系统维护中</h1>");
+  await assert.rejects(
+    () => a.request("https://webvpn2.shsmu.edu.cn", "/test"),
+    /数据格式异常/,
+  );
+  assert.equal(renews, 1);
   a.configure({ remember: false });
   assert.equal(v.data.cookies.length, 0);
   assert.equal(v.data.credentials, null);
