@@ -1,11 +1,35 @@
 import WorkflowSettings from "./WorkflowSettings.jsx";
 import UpdateCenter from "./UpdateCenter.jsx";
 import React, { useState } from "react";
-import { Download, Upload, FolderOpen } from "lucide-react";
+import {
+  ArrowUpRight, Bell, CircleHelp, Database, Download, FolderOpen,
+  Info, Palette, RefreshCw, Upload, UserRound,
+} from "lucide-react";
 import { APP_LABEL } from "../../version.mjs";
 import Panel from "../../shared/Panel.jsx";
 import TeamBrand from "../../shared/TeamBrand.jsx";
 import LinkedText from "../../shared/LinkedText.jsx";
+import "./settings-page.css";
+
+const tabs = [
+  ["focus", "专注与提醒", Bell],
+  ["appearance", "界面", Palette],
+  ["account", "账号", UserRound],
+  ["data", "数据", Database],
+  ["help", "帮助", CircleHelp],
+  ["updates", "版本更新", RefreshCw],
+  ["about", "关于", Info],
+];
+
+function SettingAction({ icon: Icon, children, onClick }) {
+  return (
+    <button type="button" className="setting-action" onClick={onClick}>
+      {Icon && <Icon size={16} aria-hidden />}
+      <span>{children}</span>
+      <ArrowUpRight size={14} aria-hidden />
+    </button>
+  );
+}
 export default function SettingsPage({
   state,
   call,
@@ -18,24 +42,15 @@ export default function SettingsPage({
   const [settings, setSettings] = useState(state.settings),
     [saving, setSaving] = useState(false),
     [tab, setTab] = useState("focus");
-  const tabs = [
-    ["focus", "专注与提醒"],
-    ["appearance", "界面"],
-    ["account", "账号"],
-    ["data", "数据"],
-    ["help", "帮助"],
-    ["updates", "版本更新"],
-    ["about", "关于"],
-  ];
   return (
-    <>
-      <div className="page-heading">
+    <section className="settings-page">
+      <div className="page-heading settings-page-heading">
         <h1>设置</h1>
         <span className="version">{APP_LABEL}</span>
       </div>
       <div className="settings-layout">
         <nav className="settings-tabs" role="tablist" aria-label="设置分类">
-          {tabs.map(([id, label]) => (
+          {tabs.map(([id, label, Icon]) => (
             <button
               key={id}
               id={`settings-tab-${id}`}
@@ -45,7 +60,8 @@ export default function SettingsPage({
               aria-controls={`settings-content-${id}`}
               onClick={() => setTab(id)}
             >
-              {label}
+              <Icon size={16} aria-hidden />
+              <span>{label}</span>
             </button>
           ))}
         </nav>
@@ -58,7 +74,7 @@ export default function SettingsPage({
           <div hidden={tab !== "focus"}>
             <Panel className="panel" title="专注与提醒">
               <h2>专注与提醒</h2>
-              <form
+              <form className="settings-focus-form"
                 onSubmit={async (e) => {
                   e.preventDefault();
                   setSaving(true);
@@ -70,6 +86,7 @@ export default function SettingsPage({
                   }
                 }}
               >
+                <div className="settings-group-label">专注时长</div>
                 <div className="form-grid">
                   {[
                     ["focusMinutes", "番茄专注", 180],
@@ -92,6 +109,7 @@ export default function SettingsPage({
                     </label>
                   ))}
                 </div>
+                <div className="settings-group-label">通知与窗口</div>
                 {[
                   ["notifications", "系统通知"],
                   ["sound", "通知声音"],
@@ -108,29 +126,26 @@ export default function SettingsPage({
                     />
                   </label>
                 ))}
-                <button className="button primary" disabled={saving}>
-                  保存设置
-                </button>
+                <div className="settings-save">
+                  <button className="button primary" disabled={saving}>保存设置</button>
+                </div>
               </form>
             </Panel>
             <WorkflowSettings state={state} call={call} />
-            <button className="button" onClick={() => setPage("briefing")}>
-              早晚报与推送
-            </button>
+            <div className="settings-actions">
+              <SettingAction onClick={() => setPage("briefing")}>早晚报与推送</SettingAction>
+            </div>
           </div>
           <div hidden={tab !== "appearance"}>
             <Panel className="panel">
               <h2>界面</h2>
               <div className="settings-actions">
-                <button
-                  className="button primary"
-                  onClick={() => setPage("workbench")}
-                >
+                <SettingAction onClick={() => setPage("workbench")}>
                   主题、背景与小组件
-                </button>
-                <button className="button" onClick={openSidebarManager}>
+                </SettingAction>
+                <SettingAction onClick={openSidebarManager}>
                   整理侧栏
-                </button>
+                </SettingAction>
               </div>
             </Panel>
           </div>
@@ -139,21 +154,17 @@ export default function SettingsPage({
               <h2>账号与跨设备同步</h2>
               <p>{state.account?.user?.email}</p>
               <div className="settings-actions">
-                <button
-                  className="button primary"
-                  onClick={() => setPage("account")}
-                >
+                <SettingAction onClick={() => setPage("account")}>
                   管理账号与同步
-                </button>
-                <button
-                  className="button"
+                </SettingAction>
+                <SettingAction
                   onClick={async () => {
                     await call("school.logout");
                     toast("学校登录已退出");
                   }}
                 >
                   退出学校登录
-                </button>
+                </SettingAction>
               </div>
             </Panel>
           </div>
@@ -161,24 +172,15 @@ export default function SettingsPage({
             <Panel className="panel">
               <h2>备份与恢复</h2>
               <div className="settings-actions">
-                <button
-                  className="button"
-                  onClick={() => call("export.backup")}
-                >
-                  <Download size={16} />
+                <SettingAction icon={Download} onClick={() => call("export.backup")}>
                   导出完整备份
-                </button>
-                <button
-                  className="button"
-                  onClick={() => call("import.backup")}
-                >
-                  <Upload size={16} />
+                </SettingAction>
+                <SettingAction icon={Upload} onClick={() => call("import.backup")}>
                   从备份恢复
-                </button>
-                <button className="button" onClick={() => call("data.folder")}>
-                  <FolderOpen size={16} />
+                </SettingAction>
+                <SettingAction icon={FolderOpen} onClick={() => call("data.folder")}>
                   打开数据文件夹
-                </button>
+                </SettingAction>
               </div>
               <details>
                 <summary>备份范围</summary>
@@ -190,21 +192,15 @@ export default function SettingsPage({
             <Panel className="panel">
               <h2>帮助与手册</h2>
               <div className="settings-actions">
-                <button
-                  className="button primary"
-                  onClick={() => openManual("user")}
-                >
+                <SettingAction onClick={() => openManual("user")}>
                   使用说明
-                </button>
-                <button
-                  className="button"
-                  onClick={() => openManual("developer")}
-                >
+                </SettingAction>
+                <SettingAction onClick={() => openManual("developer")}>
                   开发者手册 · Zeus
-                </button>
-                <button className="button" onClick={startTour}>
+                </SettingAction>
+                <SettingAction onClick={startTour}>
                   重新播放新手教程
-                </button>
+                </SettingAction>
               </div>
             </Panel>
           </div>
@@ -256,6 +252,6 @@ export default function SettingsPage({
           </div>
         </div>
       </div>
-    </>
+    </section>
   );
 }

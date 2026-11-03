@@ -1,0 +1,110 @@
+.settings-page {
+  container-type: inline-size;
+}
+.settings-page .settings-layout {
+  display: grid;
+  grid-template-columns: minmax(144px, 175px) minmax(0, 780px);
+  gap: clamp(14px, 2.5cqi, 30px);
+  max-width: 1000px;
+}
+.settings-page .settings-tabs {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 3px;
+  padding: 5px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.settings-page .settings-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  min-height: 36px;
+}
+.settings-page .settings-tabs button:hover,
+.settings-page .settings-tabs button[aria-selected="true"] {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--text);
+  box-shadow: none;
+}
+.settings-page .settings-tabs button[aria-selected="true"] {
+  font-weight: 650;
+}
+.settings-page .settings-content > div:not([hidden]) {
+  display: grid;
+  gap: 10px;
+}
+.settings-page .settings-content .panel {
+  margin: 0;
+}
+.settings-page .settings-focus-form .form-grid {
+  gap: 10px 16px;
+  margin: 8px 0 15px;
+}
+.settings-page .settings-focus-form .form-grid label {
+  min-width: 0;
+}
+.settings-page .settings-focus-form .form-grid input {
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.settings-group-label {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+.settings-page .settings-focus-form .toggle-row {
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+}
+.settings-save {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.settings-page .settings-actions {
+  display: grid;
+  gap: 0;
+  margin-top: 6px;
+}
+.setting-action {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 38px;
+  padding: 8px 10px;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.setting-action:hover {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+.setting-action span {
+  flex: 1;
+}
+.setting-action svg {
+  flex: none;
+  color: var(--muted);
+}
+@container (max-width: 620px) {
+  .settings-page .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-page .settings-tabs {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .settings-page .settings-tabs button {
+    padding-inline: 8px;
+  }
+}

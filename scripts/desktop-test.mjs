@@ -443,6 +443,11 @@ try {
   await page.getByRole("button", { name: "关闭手册" }).click();
   ok("使用说明与开发者手册内嵌显示");
   await page.getByRole("tab", { name: "专注与提醒", exact: true }).click();
+  await page.screenshot({ path: path.join(output, "settings-v630-focus.png") });
+  await page.getByRole("tab", { name: "数据", exact: true }).click();
+  await page.getByRole("button", { name: "导出完整备份", exact: true }).waitFor();
+  await page.screenshot({ path: path.join(output, "settings-v630-data.png") });
+  await page.getByRole("tab", { name: "专注与提醒", exact: true }).click();
   await page.getByLabel("每日专注目标（分钟）").fill("180");
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
   state = await page.evaluate(() => window.veritas.call("state"));
