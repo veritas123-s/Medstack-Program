@@ -1,0 +1,27 @@
+name: Medstack Windows package
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run dist:installer -- --publish never
+      - name: Exercise packaged desktop
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          node scripts/desktop-test.mjs "release-medstack-$version/win-unpacked/Medstack.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Medstack-Windows
+          path: release-medstack-*/Medstack-Setup-*-x64.exe
+          if-no-files-found: error

@@ -1,0 +1,43 @@
+name: Publish verified Medstack packages
+on:
+  workflow_dispatch:
+    inputs:
+      windows_run:
+        required: true
+      macos_run:
+        required: true
+      android_run:
+        required: true
+      android_blob:
+        required: true
+permissions:
+  actions: read
+  contents: write
+concurrency:
+  group: medstack-public-release
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: node scripts/publish-ci-release.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WINDOWS_RUN: ${{ inputs.windows_run }}
+          MACOS_RUN: ${{ inputs.macos_run }}
+          ANDROID_RUN: ${{ inputs.android_run }}
+          ANDROID_BLOB: ${{ inputs.android_blob }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Medstack-verified-announcement
+          path: release-announcement.json
+          if-no-files-found: error

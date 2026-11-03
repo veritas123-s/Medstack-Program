@@ -3,7 +3,7 @@ import { ChevronDown, DoorOpen, RefreshCw } from "lucide-react";
 import { beijingDay } from "../../briefing.mjs";
 import Panel from "../../shared/Panel.jsx";
 import { Empty } from "../../components.jsx";
-import { roomStatus } from "./room-status.mjs";
+import { buildingDisplayName, roomStatus } from "./room-status.mjs";
 import "./room-board.css";
 
 const clock = new Intl.DateTimeFormat("en-GB", {
@@ -20,7 +20,8 @@ const progressLabels = {
   rooms: "已查询教室",
 };
 
-function RoomCard({ room }) {
+function RoomCard({ room, at }) {
+  const other = (room.rows || []).filter((row) => !room.upcoming.includes(row));
   return (
     <details className="room-card" data-status={room.state}>
       <summary>
@@ -48,21 +49,28 @@ function RoomCard({ room }) {
         )}
       </summary>
       <div className="room-day">
-        <b>当天安排</b>
-        {room.rows?.length ? (
-          <ul>
-            {room.rows.map((row, i) => (
-              <li key={i}>
-                <strong>{row.title || "用途未注明"}</strong>
-                <small>
-                  {row.start || "开始时间待确认"}–{row.end || "结束时间待确认"}
-                  {row.teacher ? ` · ${row.teacher}` : ""}
-                </small>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <small>{room.complete ? "无教务占用记录" : "未读取到完整安排"}</small>
+        <b>当天 {at} 之后的占用</b>
+        {!room.upcoming.length && !room.uncertain && (
+          <small>今天之后无教务占用记录</small>
+        )}
+        {room.uncertain && <small>部分安排未确认，以现场为准。</small>}
+        {[[room.upcoming, ""], [other, "当天其余安排"]].map(([rows, label]) =>
+          rows.length > 0 && (
+            <React.Fragment key={label}>
+              {label && <b>{label}</b>}
+              <ul>
+                {rows.map((row, i) => (
+                  <li key={i}>
+                    <strong>{row.title || "用途未注明"}</strong>
+                    <small>
+                      {row.start || "开始时间待确认"}–{row.end || "结束时间待确认"}
+                      {row.teacher ? ` · ${row.teacher}` : ""}
+                    </small>
+                  </li>
+                ))}
+              </ul>
+            </React.Fragment>
+          ),
         )}
       </div>
     </details>
@@ -146,6 +154,7 @@ export default function RoomBoard({ call }) {
     ? `${stage} ${progress.completed} / ${progress.total}`
     : stage;
   const at = time || now;
+  const campusName = areas.find((item) => item.code === area)?.name;
   const floors = new Map();
   const counts = { free: 0, busy: 0, unknown: 0 };
   for (const room of result?.rooms || []) {
@@ -203,7 +212,7 @@ export default function RoomBoard({ call }) {
             <option value="">选择楼栋</option>
             {buildings.map((item) => (
               <option key={item.code} value={item.code}>
-                {item.name}
+                {buildingDisplayName(campusName, item.name)}
               </option>
             ))}
           </select>
@@ -278,7 +287,7 @@ export default function RoomBoard({ call }) {
               <h4>{floor.name}</h4>
               <div className="room-grid">
                 {floor.rooms.map((room) => (
-                  <RoomCard key={room.code} room={room} />
+                  <RoomCard key={room.code} room={room} at={at} />
                 ))}
               </div>
             </section>

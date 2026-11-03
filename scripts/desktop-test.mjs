@@ -211,11 +211,18 @@ try {
                     { code: "free", name: "合成 102" },
                     { code: "unknown", name: "合成 103" },
                   ]
-                : [{ code: "test", name: "测试选项" }],
+                : type === "BuildCode"
+                  ? ["08", "09", "11", "12"].map((number) => ({
+                      code: number + "号楼",
+                      name: number + "号楼",
+                    }))
+                  : [{ code: "test", name: type === "AnswerAuxiliaryCampus" ? "浦东" : "测试选项" }],
           }),
         );
       }
       const room = new URL(url).searchParams.get("classroomId");
+      if (new URL(url).searchParams.get("buliding") !== "08号楼")
+        return new Response("unexpected building code", { status: 400 });
       if (room === "unknown") {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         return new Response("unavailable", { status: 503 });
@@ -225,9 +232,19 @@ try {
         JSON.stringify({
           data: [
             {
+              coursename: "合成下午占用",
+              periodbegintime: "14:00",
+              periodendtime: "15:00",
+            },
+            {
               coursename: "合成教室占用",
               periodbegintime: "08:00",
               periodendtime: "09:00",
+            },
+            {
+              coursename: "合成上午占用",
+              periodbegintime: "10:00",
+              periodendtime: "11:00",
             },
           ],
         }),
@@ -249,13 +266,12 @@ try {
   await page.getByRole("cell", { name: "88", exact: true }).waitFor();
   await page.getByRole("button", { name: "教室查询", exact: true }).click();
   const roomSelects = page.locator(".room-filters select");
-  for (let i = 0; i < 2; i++) {
-    await roomSelects
-      .nth(i)
-      .locator('option[value="test"]')
-      .waitFor({ state: "attached" });
-    await roomSelects.nth(i).selectOption("test");
-  }
+  await roomSelects.nth(0).selectOption({ label: "浦东" });
+  const buildingSelect = roomSelects.nth(1);
+  await buildingSelect.locator('option[value="08号楼"]').waitFor({ state: "attached" });
+  assert.deepEqual((await buildingSelect.locator("option").allTextContents()).slice(1),
+    ["东8号楼", "东9号楼", "东11号楼", "东12号楼"]);
+  await buildingSelect.selectOption({ label: "东8号楼" });
   const floorProgress = page.getByRole("progressbar", { name: "已查询楼层" });
   await floorProgress.waitFor();
   assert.equal(await floorProgress.getAttribute("max"), "1");
@@ -277,11 +293,20 @@ try {
     .waitFor();
   await roomProgress.waitFor({ state: "hidden" });
   ok("楼层和教室显示实际查询进度，部分请求失败仍结束进度");
+  ok("浦东楼栋显示官方东区前缀，查询沿用原始楼栋代码");
   await page.getByLabel("查看时间（北京时间）").fill("09:00");
   await page
     .locator('.room-card[data-status="free"]')
     .getByText("合成 101", { exact: true })
     .waitFor();
+  const roomCard = page.locator(".room-card").filter({ hasText: "合成 101" });
+  await roomCard.locator("summary").click();
+  await roomCard.getByText("当天 09:00 之后的占用").waitFor();
+  assert.deepEqual(await roomCard.locator(".room-day ul").first().locator("li strong").allTextContents(),
+    ["合成上午占用", "合成下午占用"]);
+  await page.getByLabel("查看时间（北京时间）").fill("15:00");
+  await roomCard.getByText("今天之后无教务占用记录").waitFor();
+  ok("展开教室按所选时间展示后续占用，按开始时间排序");
   ok("校园响应合成测试：成绩、楼栋状态、用途与时段边界");
   await page.getByLabel("查看时间（北京时间）").fill("08:30");
   await page.screenshot({ path: path.join(output, "room-board-v625.png") });
