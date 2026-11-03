@@ -8,9 +8,42 @@ import { EventEmitter } from "node:events";
 import {
   UpdateInstaller,
   installerURL,
+  trashOldUpdateDownloads,
   updateWorker,
   waitForWorker,
 } from "../electron/update-installer.mjs";
+test("新版只清理更新目录中的已知旧版下载，保留新版、其他文件与备份", async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "medstack-cleanup-"));
+  try {
+    const files = [
+      "updates/6.2.1/Medstack-Setup-6.2.1-x64.exe",
+      "updates/6.2.1/worker-ready.json",
+      "updates/6.2.1/keep.txt",
+      "updates/6.2.4/Medstack-Setup-6.2.4-x64.exe",
+      "updates/6.3.0/Medstack-Setup-6.3.0-x64.exe",
+      "upgrade-backups/6.2.1/Medstack-Setup-6.2.1-x64.exe",
+    ];
+    for (const file of files) {
+      const target = path.join(directory, file);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, "synthetic");
+    }
+    const removed = [];
+    await trashOldUpdateDownloads(directory, "6.2.4", async (file) => {
+      removed.push(path.basename(file));
+      fs.unlinkSync(file);
+    });
+    assert.deepEqual(removed.sort(), [
+      "Medstack-Setup-6.2.1-x64.exe",
+      "worker-ready.json",
+    ]);
+    assert.ok(
+      files.slice(2).every((file) => fs.existsSync(path.join(directory, file))),
+    );
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
 const payload = Buffer.alloc(150000, 65);
 const release = {
   schema: 1,

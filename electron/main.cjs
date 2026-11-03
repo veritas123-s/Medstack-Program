@@ -60,6 +60,7 @@ let win,
   connectorInitialization,
   schoolCoursesTimer,
   commandRouter,
+  oldDownloadsChecked = false,
   authFlushed = false,
   quitting = false,
   sequence = 0;
@@ -155,7 +156,27 @@ async function handle(action, p = {}) {
     const { readHelp } = await import("./help.mjs");
     return readHelp(app, p?.kind);
   }
-  if (action === "state") return snapshot();
+  if (action === "state") {
+    if (
+      !oldDownloadsChecked &&
+      !testMode &&
+      app.isPackaged &&
+      process.platform === "win32" &&
+      path.basename(process.execPath).toLowerCase() === "medstack.exe"
+    ) {
+      oldDownloadsChecked = true;
+      import("./update-installer.mjs")
+        .then(({ trashOldUpdateDownloads }) =>
+          trashOldUpdateDownloads(
+            app.getPath("userData"),
+            APP_VERSION,
+            (file) => shell.trashItem(file),
+          ),
+        )
+        .catch(() => {});
+    }
+    return snapshot();
+  }
   if (action === "updates.state") return updates.status();
   if (action === "updates.check") return updates.check();
   if (action === "updates.dismiss") return updates.dismiss();

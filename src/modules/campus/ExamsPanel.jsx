@@ -26,13 +26,14 @@ export default function ExamsPanel({ state, call }) {
           ? "上次同步 " + new Date(data.syncedAt).toLocaleString("zh-CN")
           : "尚未同步"}{" "}
         · 后台每 30 分钟同步
-        {data.academicYear && ` · ${data.academicYear} ${data.semester || ""}`}
+        {data.completedTerms > 0 && ` · 已查询 ${data.completedTerms} 个学期`}
       </p>
       {data.error && (
         <p className="error" role="alert">
           {data.error}
         </p>
       )}
+      {data.incomplete && <p role="status">部分学期尚未确认，已保留旧结果。</p>}
       {items.length > 0 ? (
         <div className="table-wrap">
           <table>
@@ -46,7 +47,15 @@ export default function ExamsPanel({ state, call }) {
             <tbody>
               {items.map((x) => (
                 <tr key={x.id}>
-                  <td>{x.title}</td>
+                  <td>
+                    {x.title}
+                    {x.academicYear && x.semester && (
+                      <small className="hint">
+                        {" "}
+                        · {x.academicYear} 学年第 {x.semester} 学期
+                      </small>
+                    )}
+                  </td>
                   <td>
                     {x.rawTime || "学校未公布"}
                     {!x.start && " · 待核对"}
@@ -59,8 +68,8 @@ export default function ExamsPanel({ state, call }) {
         </div>
       ) : (
         <p>
-          {data.syncedAt && !data.error
-            ? "学校未公布本学期考试安排"
+          {data.syncedAt && !data.error && !data.incomplete
+            ? "已查询的学期没有考试安排"
             : "考试同步后会显示在日历。"}
         </p>
       )}

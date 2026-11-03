@@ -5,6 +5,40 @@ import { spawn } from "node:child_process";
 import { validateRelease, newerVersion } from "../src/releases.mjs";
 import { publicResponse, abortable } from "./public-fetch.mjs";
 
+export async function trashOldUpdateDownloads(directory, version, trash) {
+  const root = path.resolve(directory, "updates");
+  let entries;
+  try {
+    if (path.relative(root, await fs.promises.realpath(root))) return;
+    entries = await fs.promises.readdir(root, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !/^\d+\.\d+\.\d+$/.test(entry.name)) continue;
+    try {
+      if (!newerVersion(version, entry.name)) continue;
+      const folder = path.join(root, entry.name);
+      if (path.relative(folder, await fs.promises.realpath(folder))) continue;
+      const installer = `Medstack-Setup-${entry.name}-x64.exe`;
+      const known = new Set([
+        installer,
+        installer + ".pending",
+        "install-update.ps1",
+        "install-launcher.vbs",
+        "worker-ready.json",
+      ]);
+      for (const file of await fs.promises.readdir(folder, {
+        withFileTypes: true,
+      })) {
+        if (file.isFile() && known.has(file.name))
+          await trash(path.join(folder, file.name)).catch(() => {});
+      }
+      await fs.promises.rmdir(folder).catch(() => {});
+    } catch {}
+  }
+}
+
 const assetHosts = new Set([
   "github.com",
   "release-assets.githubusercontent.com",

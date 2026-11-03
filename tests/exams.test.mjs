@@ -92,6 +92,38 @@ test("学校空表提示可识别，分页未完整读取不清空旧安排", ()
     /部分考试/,
   );
 });
+test("部分学期未确认时合并已读考试并保留缓存，不重复加入日历", async () => {
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "medstack-exam-terms-"),
+  );
+  try {
+    const state = { events: [] };
+    const initial = { ...page(), academicYear: "2026-2027", semester: "1" };
+    const other = {
+      ...page("2026年12月12日 08:00–10:00"),
+      academicYear: "2025-2026",
+      semester: "2",
+    };
+    const service = new ExamService({
+      directory,
+      store: { change: (fn) => fn(state) },
+      allowed: () => true,
+      readPage: async () => ({ pages: [initial], failed: 0 }),
+    });
+    await service.sync();
+    service.readPage = async () => ({
+      pages: [other, { ...other, semester: "1" }],
+      failed: 1,
+    });
+    const result = await service.sync();
+    assert.equal(result.incomplete, true);
+    assert.equal(result.items.length, 2);
+    assert.equal(state.events.length, 2);
+    assert.ok(state.events.every((event) => !event.deletedAt));
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
 test("重复同步不重复日程，手工修改和删除不会被覆盖；确切旧安排撤下", () => {
   const items = parseExamTables(page()),
     state = { events: [] };

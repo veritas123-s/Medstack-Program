@@ -20,41 +20,46 @@ export function currentExamTerm(date = new Date()) {
   };
 }
 
-async function queryExamDocument(term) {
+async function queryExamDocument(preferred) {
   const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const empty = /暂无|无记录|没有数据|没有找到|无匹配/;
-  const select = (id, match) => {
+  const yearLabel = (value) =>
+    String(value)
+      .replace(/\s/g, "")
+      .replace(/[–—]/g, "-")
+      .match(/20\d{2}-20\d{2}/)?.[0];
+  const semesterNumber = (option) =>
+    /第一|^1$/.test(option.textContent.trim())
+      ? 1
+      : /第二|^2$/.test(option.textContent.trim())
+        ? 2
+        : /^[12]$/.test(option.value)
+          ? Number(option.value)
+          : 0;
+  const options = (id) =>
+    [...(document.querySelector(id)?.options || [])].filter(
+      (option) => !option.disabled && option.value,
+    );
+  const value = (id) => document.querySelector(id)?.value;
+  const select = (id, next) => {
     const field = document.querySelector(id);
-    const option = [...(field?.options || [])].find(match);
-    if (!option) return false;
-    if (field.value !== option.value) {
-      field.value = option.value;
+    if (!field || !options(id).some((option) => option.value === next))
+      return false;
+    if (field.value !== next) {
+      field.value = next;
       field.dispatchEvent(new Event("change", { bubbles: true }));
     }
     return true;
   };
-  const gradeMatches = (option) =>
-    option &&
-    (option.textContent
-      .replace(/\s/g, "")
-      .replace(/[–—]/g, "-")
-      .includes(term.academicYear) ||
-      option.value === term.academicYear);
-  const semesterMatches = (option) =>
-    option &&
-    (option.value === String(term.semester) ||
-      option.textContent.includes(
-        term.semester === 1 ? "第一学期" : "第二学期",
-      ));
   const examTable = () =>
     [...document.querySelectorAll("table")].find((table) =>
       [...table.rows].some(
         (row) =>
           /考试课程|课程名称|考试科目|科目名称/.test(row.innerText) &&
-          /考试时间|考试日期/.test(row.innerText),
+          /考试.*时间|考试日期/.test(row.innerText),
       ),
     );
-  const snapshot = () => {
+  const snapshot = (academicYear, semester) => {
     const table = examTable();
     return {
       tables: table
@@ -67,73 +72,12 @@ async function queryExamDocument(term) {
           ]
         : [],
       text: document.body.innerText.slice(0, 30000),
-      academicYear:
-        document.querySelector("#Grade")?.selectedOptions[0]?.textContent ||
-        term.academicYear,
-      semester:
-        document.querySelector("#Semester")?.selectedOptions[0]?.textContent ||
-        String(term.semester),
+      academicYear,
+      semester: String(semester),
     };
   };
-  let responseReceived = false;
-  let responseFailed = false;
-  const table = examTable();
-  const widget =
-    table && typeof window.jQuery === "function" ? window.jQuery(table) : null;
-  widget?.on("load-success.bs.table", () => {
-    responseReceived = true;
-  });
-  widget?.on("load-error.bs.table", () => {
-    responseFailed = true;
-  });
-  const before = JSON.stringify(snapshot().tables);
-  const oldGrade = document.querySelector("#Grade")?.value;
-  const oldSemester = document.querySelector("#Semester")?.value;
-  for (let i = 0; i < 12 && !select("#Grade", gradeMatches); i++)
-    await pause(150);
-  if (!select("#Grade", gradeMatches))
-    return { error: "学校页面没有提供当前学年，旧考试安排已保留" };
-  for (let i = 0; i < 12 && !select("#Semester", semesterMatches); i++)
-    await pause(150);
-  if (!select("#Semester", semesterMatches))
-    return { error: "学校页面没有提供当前学期，旧考试安排已保留" };
-  const changed =
-    oldGrade !== document.querySelector("#Grade")?.value ||
-    oldSemester !== document.querySelector("#Semester")?.value;
-  const query = [
-    ...document.querySelectorAll(
-      "button, input[type=button], input[type=submit], a[role=button], a.btn",
-    ),
-  ].filter(
-    (node) =>
-      /^(查询|搜索|检索|查询考试|考试查询)$/.test(
-        (node.innerText || node.value || "").replace(/\s/g, ""),
-      ) &&
-      !node.disabled &&
-      node.getClientRects().length,
-  );
-  if (query.length === 1) {
-    responseReceived = false;
-    responseFailed = false;
-    query[0].click();
-  } else if (!changed && widget?.data("bootstrap.table")) {
-    widget.bootstrapTable("refresh");
-  }
-  let last = "";
-  let stable = 0;
-  for (let i = 0; i < 36; i++) {
-    await pause(350);
-    if (responseFailed) return { error: "学校考试查询失败，旧结果已保留" };
-    const page = snapshot();
-    const signature = JSON.stringify(page.tables);
-    stable = signature === last ? stable + 1 : 0;
-    last = signature;
-    const rows = page.tables[0]?.rows || [];
-    const hasRows = rows
-      .slice(1)
-      .some((row) => row.length > 1 && !empty.test(row.join("")));
-    const showsEmpty = rows.slice(1).some((row) => empty.test(row.join("")));
-    const loading = [
+  const loading = () =>
+    [
       ...document.querySelectorAll(
         ".fixed-table-loading,.dataTables_processing,[aria-busy=true]",
       ),
@@ -142,22 +86,139 @@ async function queryExamDocument(term) {
         node.getClientRects().length &&
         getComputedStyle(node).visibility !== "hidden",
     );
-    const confirmedTerm =
-      gradeMatches(document.querySelector("#Grade")?.selectedOptions[0]) &&
-      semesterMatches(document.querySelector("#Semester")?.selectedOptions[0]);
-    const refreshed = responseReceived || signature !== before;
-    if (
-      confirmedTerm &&
-      !loading &&
-      stable >= 2 &&
-      ((hasRows && (refreshed || (!changed && !query.length))) ||
-        (showsEmpty &&
-          (responseReceived ||
-            (refreshed && /总共\s*0\s*条记录/.test(page.text)))))
-    )
-      return page;
+  const deadline = Date.now() + 140_000;
+  const pages = [];
+  let attempted = 0;
+  let failed = 0;
+  for (let i = 0; i < 12 && !options("#Grade").length; i++) await pause(150);
+  const years = options("#Grade")
+    .map((option) => ({
+      value: option.value,
+      label: yearLabel(option.textContent) || yearLabel(option.value),
+    }))
+    .filter((option) => option.label)
+    .sort(
+      (a, b) =>
+        Number(b.label === preferred.academicYear) -
+          Number(a.label === preferred.academicYear) ||
+        b.label.localeCompare(a.label),
+    );
+  if (!years.length) return { pages, attempted, failed: 1 };
+  async function readTerm(year, semester, gradeChanged) {
+    const baseline = JSON.stringify(
+      snapshot(year.label, semester.number).tables,
+    );
+    const changed = gradeChanged || value("#Semester") !== semester.value;
+    const table = examTable();
+    const widget =
+      table && typeof window.jQuery === "function"
+        ? window.jQuery(table)
+        : null;
+    let success = false;
+    let failure = false;
+    const loaded = () => {
+      success = true;
+    };
+    const rejected = () => {
+      failure = true;
+    };
+    widget?.on("load-success.bs.table", loaded);
+    widget?.on("load-error.bs.table", rejected);
+    try {
+      if (!select("#Semester", semester.value)) return null;
+      const query = [
+        ...document.querySelectorAll(
+          "button,input[type=button],input[type=submit],a[role=button],a.btn",
+        ),
+      ].filter(
+        (node) =>
+          /^(查询|搜索|检索|查询考试|考试查询)$/.test(
+            (node.innerText || node.value || "").replace(/\s/g, ""),
+          ) &&
+          !node.disabled &&
+          node.getClientRects().length,
+      );
+      if (query.length === 1) query[0].click();
+      else if (!changed && widget?.data("bootstrap.table"))
+        widget.bootstrapTable("refresh");
+      let sawChange =
+        JSON.stringify(snapshot(year.label, semester.number).tables) !==
+        baseline;
+      let last = "";
+      let stable = 0;
+      for (let i = 0; i < 26 && Date.now() < deadline; i++) {
+        await pause(250);
+        if (failure) return null;
+        const page = snapshot(year.label, semester.number);
+        const signature = JSON.stringify(page.tables);
+        stable = signature === last ? stable + 1 : 0;
+        last = signature;
+        const rows = page.tables[0]?.rows || [];
+        const hasRows = rows
+          .slice(1)
+          .some((row) => row.length > 1 && !empty.test(row.join("")));
+        const showsEmpty = rows
+          .slice(1)
+          .some((row) => empty.test(row.join("")));
+        sawChange ||= signature !== baseline;
+        const refreshed = success || sawChange;
+        if (
+          value("#Grade") === year.value &&
+          value("#Semester") === semester.value &&
+          !loading() &&
+          stable >= 2 &&
+          ((hasRows && (refreshed || (!changed && !query.length))) ||
+            (showsEmpty &&
+              (success || (refreshed && /总共\s*0\s*条记录/.test(page.text)))))
+        )
+          return page;
+      }
+      return null;
+    } finally {
+      widget?.off("load-success.bs.table", loaded);
+      widget?.off("load-error.bs.table", rejected);
+    }
   }
-  return { error: "学校尚未返回可确认的本学期考试结果，旧结果已保留" };
+  for (const year of years) {
+    if (Date.now() >= deadline) {
+      failed++;
+      break;
+    }
+    const gradeChanged = value("#Grade") !== year.value;
+    if (!select("#Grade", year.value)) {
+      failed++;
+      continue;
+    }
+    if (gradeChanged) await pause(250);
+    for (let i = 0; i < 12 && !options("#Semester").some(semesterNumber); i++)
+      await pause(150);
+    const semesters = options("#Semester")
+      .map((option) => ({
+        value: option.value,
+        number: semesterNumber(option),
+      }))
+      .filter((option) => option.number)
+      .sort(
+        (a, b) =>
+          Number(b.number === preferred.semester) -
+          Number(a.number === preferred.semester),
+      );
+    if (!semesters.length) {
+      failed++;
+      continue;
+    }
+    for (const semester of semesters) {
+      if (Date.now() >= deadline) {
+        failed++;
+        break;
+      }
+      attempted++;
+      const page = await readTerm(year, semester, gradeChanged);
+      if (page) pages.push(page);
+      else failed++;
+    }
+  }
+  return { pages, attempted, failed };
 }
 const clean = (x) =>
   String(x || "")
@@ -181,7 +242,22 @@ function interval(raw, context = {}) {
       +academic[2] === +academic[1] + 1 &&
       (first || second)
     ) {
-      const year = first && +md[1] >= 8 ? academic[1] : academic[2];
+      const weekday = raw.match(/(?:周|星期)([日天一二三四五六])/);
+      const compatibleYears = weekday
+        ? academic
+            .slice(1, 3)
+            .filter(
+              (year) =>
+                new Date(Date.UTC(+year, +md[1] - 1, +md[2])).getUTCDay() ===
+                "日一二三四五六".indexOf(weekday[1].replace("天", "日")),
+            )
+        : [];
+      const year =
+        compatibleYears.length === 1
+          ? compatibleYears[0]
+          : first && +md[1] >= 8
+            ? academic[1]
+            : academic[2];
       date = ["", year, md[1], md[2]];
       dateSource = "academic-year";
     }
@@ -248,6 +324,7 @@ export function parseExamTables(page) {
         rawTime,
         location,
         academicYear: clean(page.academicYear),
+        semester: clean(page.semester),
         ...dates,
       });
     }
@@ -330,21 +407,71 @@ export class ExamService {
     const generation = this.generation;
     this.pending = (async () => {
       try {
-        const page = await this.readPage();
-        const items = parseExamTables(page);
+        const result = await this.readPage();
+        const pages = result.pages || [result];
+        let failed = result.failed || 0;
+        const parsed = [];
+        let completed = 0;
+        const confirmed = new Set();
+        for (const page of pages) {
+          try {
+            parsed.push(...parseExamTables(page));
+            completed++;
+            confirmed.add(JSON.stringify([page.academicYear, page.semester]));
+          } catch (error) {
+            if (!result.pages) throw error;
+            failed++;
+          }
+        }
+        if (!completed) throw Error("各学期考试结果未能确认，旧结果已保留");
+        const key = (item) =>
+          JSON.stringify([
+            item.title,
+            item.start || item.id,
+            item.end,
+            item.location,
+          ]);
+        const old = new Map(this.data.items.map((item) => [key(item), item]));
+        const merged = new Map(failed ? old : []);
+        for (const item of parsed) {
+          const identity = key(item);
+          const prior = old.get(identity);
+          if (!merged.has(identity) || prior)
+            merged.set(identity, prior ? { ...item, id: prior.id } : item);
+        }
+        const today = new Intl.DateTimeFormat("sv-SE", {
+          timeZone: "Asia/Shanghai",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date());
+        const group = (item) => (!item.start ? 2 : item.start >= today ? 0 : 1);
+        const items = [...merged.values()].sort(
+          (a, b) =>
+            group(a) - group(b) ||
+            (group(a) === 1
+              ? b.start.localeCompare(a.start)
+              : (a.start || "").localeCompare(b.start || "")) ||
+            a.title.localeCompare(b.title),
+        );
         if (generation !== this.generation || !this.allowed())
           throw Error("账号已切换，未写入考试信息");
-        const prior =
-          this.data.academicYear === page.academicYear &&
-          this.data.semester === page.semester
-            ? this.data.items
-            : [];
+        const prior = failed
+          ? []
+          : this.data.items.filter(
+              (item) =>
+                item.academicYear &&
+                item.semester &&
+                confirmed.has(
+                  JSON.stringify([item.academicYear, item.semester]),
+                ),
+            );
         this.store.change((s) => mergeExamEvents(s, items, prior));
         const data = {
           items,
           syncedAt: Date.now(),
-          academicYear: page.academicYear,
-          semester: page.semester,
+          completedTerms: completed,
+          incomplete: failed > 0,
         };
         fs.writeFileSync(this.file + ".pending", JSON.stringify(data));
         fs.renameSync(this.file + ".pending", this.file);
@@ -393,7 +520,7 @@ export async function readExamPage({ BrowserWindow, session, allowed }) {
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   const timer = setTimeout(() => {
     if (!win.isDestroyed()) win.destroy();
-  }, 25_000);
+  }, 155_000);
   try {
     await win.loadURL(EXAM_VPN_URL);
     const url = new URL(win.webContents.getURL());
@@ -407,7 +534,8 @@ export async function readExamPage({ BrowserWindow, session, allowed }) {
     const page = await win.webContents.executeJavaScript(
       `(${queryExamDocument})(${JSON.stringify(currentExamTerm())})`,
     );
-    if (page.error) throw Error(page.error);
+    if (!page.pages?.length)
+      throw Error("学校未返回可确认的考试结果，旧结果已保留");
     return page;
   } finally {
     clearTimeout(timer);
