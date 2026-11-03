@@ -1,5 +1,42 @@
 import { ENTRY, isSchoolURL, schoolJSON } from "./campus.mjs";
 
+function schoolLoginForm(expectedURL, action, credentials) {
+  if (location.href !== expectedURL) return "changed";
+  const challenge = [
+    ...document.querySelectorAll(
+      'input[name="authcode" i], input[name*="captcha" i], input[name*="otp" i]',
+    ),
+  ].some((field) => field.getClientRects().length > 0);
+  if (challenge || /滑块验证|短信验证|扫码验证/.test(document.body.innerText))
+    return "challenge";
+  const user = document.querySelector('input[name="username"]');
+  const pass = document.querySelector('input[name="password"]');
+  const form = pass?.form;
+  if (!form || user?.form !== form) return "no-form";
+  const target = new URL(form.action, location.href);
+  if (target.origin !== location.origin) return "changed";
+  if (action === "fill") {
+    for (const [field, value] of [
+      [user, credentials.username],
+      [pass, credentials.password],
+    ]) {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      ).set.call(field, value);
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  } else if (action === "submit") {
+    const button = form.querySelector(
+      'button[type="submit"],input[type="submit"],button',
+    );
+    if (button) button.click();
+    else form.requestSubmit();
+  }
+  return "form";
+}
+
 export function cookieForRestore(cookie, now = Date.now() / 1000) {
   if (
     !cookie ||
@@ -31,6 +68,8 @@ export class CampusAuth {
   constructor({ session, BrowserWindow, vault, changed }) {
     Object.assign(this, { session, BrowserWindow, vault, changed });
     this.window = null;
+    this.backgroundWindow = null;
+    this.revision = 0;
     this.pending = null;
     this.lastAttempt = 0;
     this.phase = "idle";
@@ -103,6 +142,9 @@ export class CampusAuth {
       patch.cookies = [];
     }
     this.vault.save(patch);
+    this.generation++;
+    if (this.backgroundWindow && !this.backgroundWindow.isDestroyed())
+      this.backgroundWindow.destroy();
     this.lastAttempt = 0;
     this.set(
       "idle",
@@ -111,19 +153,24 @@ export class CampusAuth {
         : "登录设置已保存。",
     );
   }
-  async open(visible = true) {
+  async open(url) {
     if (this.window && !this.window.isDestroyed()) {
-      if (visible) {
-        this.window.show();
-        this.window.focus();
-      }
+      this.window.show();
+      this.window.focus();
+      if (url || this.phase === "attention")
+        await this.load(this.window, url || ENTRY);
       return this.window;
     }
-    const window = (this.window = new this.BrowserWindow({
+    const window = (this.window = this.createWindow(true));
+    await this.load(window, url || ENTRY);
+    return window;
+  }
+  createWindow(visible) {
+    const window = new this.BrowserWindow({
       width: 1180,
       height: 820,
       show: visible,
-      title: "VERITAS · 校园认证",
+      title: "医栈通 · 学校认证",
       autoHideMenuBar: true,
       webPreferences: {
         session: this.session,
@@ -131,7 +178,7 @@ export class CampusAuth {
         contextIsolation: true,
         sandbox: true,
       },
-    }));
+    });
     const guard = (e, url) => {
       if (!isSchoolURL(url)) e.preventDefault();
     };
@@ -147,59 +194,65 @@ export class CampusAuth {
     window.webContents.on("did-finish-load", () =>
       this.persist().catch(() => this.set("attention", "学校会话未能保存")),
     );
-    await window.loadURL(ENTRY).catch(() => {
-      throw new Error("学校认证页面加载失败，请检查网络。");
-    });
     return window;
+  }
+  async load(window, url) {
+    let timer;
+    try {
+      await Promise.race([
+        window.loadURL(url),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error("学校认证超时")), 25000);
+        }),
+      ]);
+    } catch {
+      throw new Error("学校认证页面加载失败，请检查网络。");
+    } finally {
+      clearTimeout(timer);
+    }
   }
   async renew() {
     if (this.pending) return this.pending;
+    if (this.phase === "attention") throw new Error(this.message);
+    if (!this.vault.data.credentials) {
+      this.set("attention", "请在教务服务的「学校连接」完成验证。");
+      throw new Error(this.message);
+    }
     if (Date.now() - this.lastAttempt < 60000)
       throw new Error(
         "自动登录未完成，请在学校窗口验证后重试；不会连续尝试密码。",
       );
     this.lastAttempt = Date.now();
+    const generation = this.generation;
     this.pending = (async () => {
       this.set("renewing", "正在通过学校认证恢复会话…");
-      const existing = this.window && !this.window.isDestroyed();
-      const window = await this.open(false);
-      if (existing)
-        await window.loadURL(ENTRY).catch(() => {
-          throw new Error("学校认证页面加载失败，请检查网络。");
-        });
-      if (!isSchoolURL(window.webContents.getURL()))
-        throw new Error("学校认证地址不在允许范围内");
-      // Read the page state only. The school retains responsibility for RSA and challenge handling.
-      const probe = await window.webContents.executeJavaScript(
-        `(()=>({form:!!document.querySelector('input[name="username"]'),challenge:[...document.querySelectorAll('input[name="authcode"],input[name*="captcha"],input[name*="otp"]')].some(e=>e.offsetParent!==null)||/滑块验证|短信验证/.test(document.body.innerText)}))()`,
-      );
-      if (probe.form) {
-        const credentials = this.vault.data.credentials;
-        if (!credentials) {
-          window.show();
-          this.set(
-            "attention",
-            "会话已过期，请登录一次；也可设置加密自动登录。",
-          );
-          throw new Error(this.message);
-        }
-        // Credentials are inserted only in the already-verified school document.
-        const value = JSON.stringify(credentials).replace(/</g, "\\u003c");
-        const credentialsScript = `(()=>{const credentials=${value};const user=document.querySelector('input[name="username"]'),pass=document.querySelector('input[name="password"]');if(!user||!pass)return false;for(const [field,value] of [[user,credentials.username],[pass,credentials.password]]){Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(field,value);field.dispatchEvent(new Event('input',{bubbles:true}));field.dispatchEvent(new Event('change',{bubbles:true}));}return true;})()`;
-        const filled = await window.webContents
-          .executeJavaScript(credentialsScript)
+      const window = (this.backgroundWindow = this.createWindow(false));
+      await this.load(window, ENTRY);
+      const url = window.webContents.getURL();
+      if (!isSchoolURL(url)) throw new Error("学校认证地址不在允许范围内");
+      const runForm = async (action, credentials = null) => {
+        if (generation !== this.generation) throw new Error("登录状态已更改");
+        const args = JSON.stringify([url, action, credentials]).replace(
+          /</g,
+          "\\u003c",
+        );
+        const result = await window.webContents
+          .executeJavaScript(`(${schoolLoginForm})(...${args})`)
           .catch(() => {
-            throw new Error("无法自动填入学校表单，请手动登录。");
+            throw new Error("无法操作学校登录表单，请检查学校连接。");
           });
-        if (!filled) {
-          window.show();
-          throw new Error("学校登录表单已变化，请在学校窗口登录。");
-        }
-        if (probe.challenge) {
-          window.show();
-          this.set("attention", "账号已自动填入，请完成学校验证码后同步。");
+        if (
+          result === "challenge" ||
+          result === "changed" ||
+          (result === "no-form" && action !== "probe")
+        ) {
+          this.set("attention", "学校要求验证，请打开「学校连接」继续。");
           throw new Error(this.message);
         }
+        return result;
+      };
+      if ((await runForm("probe")) === "form") {
+        await runForm("fill", this.vault.data.credentials);
         const loaded = new Promise((resolve) => {
           const timer = setTimeout(resolve, 8000);
           window.webContents.once("did-finish-load", () => {
@@ -207,42 +260,71 @@ export class CampusAuth {
             resolve();
           });
         });
-        await window.webContents.executeJavaScript(
-          `(()=>{const form=document.querySelector('input[name="password"]')?.form;const button=form?.querySelector('button[type="submit"],input[type="submit"],button');if(button)button.click();else form?.requestSubmit();})()`,
-        );
+        await runForm("submit");
         await loaded;
       }
-      await this.persist();
-    })().finally(() => {
-      this.pending = null;
-    });
+      if (generation !== this.generation) throw new Error("登录状态已更改");
+      this.revision++;
+    })()
+      .catch((error) => {
+        if (generation === this.generation && this.phase === "renewing")
+          this.set("error", error.message);
+        throw error;
+      })
+      .finally(() => {
+        if (this.backgroundWindow && !this.backgroundWindow.isDestroyed())
+          this.backgroundWindow.destroy();
+        this.backgroundWindow = null;
+        this.pending = null;
+      });
     return this.pending;
   }
-  async request(base, route, params) {
+  async withSession(operation) {
+    const revision = this.revision;
+    const generation = this.generation;
+    const checkAccess = () => {
+      if (generation !== this.generation) throw new Error("登录状态已更改");
+    };
+    let data;
     try {
-      const data = await schoolJSON(this.session, base, route, params);
-      this.set("connected", "学校连接有效，会话已记住。");
-      await this.persist();
-      return data;
+      data = await operation();
     } catch (error) {
       if (error.code !== "AUTH_REQUIRED") throw error;
-      await this.renew();
+      checkAccess();
+      if (revision === this.revision) await this.renew();
+      checkAccess();
       try {
-        const data = await schoolJSON(this.session, base, route, params);
-        this.set("connected", "已自动恢复学校登录。");
-        await this.persist();
-        return data;
-      } catch {
-        if (this.window && !this.window.isDestroyed()) this.window.show();
-        this.set("attention", "学校仍需要验证，请在学校窗口完成后重试。");
+        data = await operation();
+      } catch (retryError) {
+        checkAccess();
+        if (retryError.code !== "AUTH_REQUIRED") throw retryError;
+        this.set("attention", "学校仍需要验证，请打开「学校连接」完成验证。");
         throw new Error(this.message);
       }
     }
+    checkAccess();
+    this.set("connected", "学校连接有效");
+    await this.persist().catch(() =>
+      this.set("connected", "学校连接有效，会话加密保存失败"),
+    );
+    checkAccess();
+    return data;
   }
-  async logout() {
+  request(base, route, params) {
+    return this.withSession(() =>
+      schoolJSON(this.session, base, route, params),
+    );
+  }
+  cancel() {
     this.generation++;
     clearTimeout(this.saving);
-    if (this.window && !this.window.isDestroyed()) this.window.close();
+    if (this.backgroundWindow && !this.backgroundWindow.isDestroyed())
+      this.backgroundWindow.destroy();
+    this.backgroundWindow = null;
+    if (this.window && !this.window.isDestroyed()) this.window.destroy();
+  }
+  async logout() {
+    this.cancel();
     this.vault.clear();
     await this.session.clearStorageData();
     await this.session.clearCache();

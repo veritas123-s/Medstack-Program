@@ -190,7 +190,7 @@ try {
       );
     };
   });
-  await page.getByRole("button", { name: "校园与课表", exact: true }).click();
+  await page.getByRole("button", { name: "日程日历", exact: true }).click();
   await page.getByLabel("跳转日期").fill("2026-09-24");
   await page.locator('summary[aria-label="日历更多操作"]').click();
   await page.getByRole("button", { name: "同步本月课表", exact: true }).click();
@@ -198,6 +198,7 @@ try {
     .getByText("测试课程（合成数据）", { exact: true })
     .first()
     .waitFor();
+  await page.getByRole("button", { name: "教务服务", exact: true }).click();
   await page.getByRole("button", { name: "成绩查询", exact: true }).click();
   await page.getByLabel("学年", { exact: true }).fill("2026-2027");
   await page.getByRole("button", { name: "查询成绩", exact: true }).click();
@@ -215,18 +216,19 @@ try {
   await page.getByRole("button", { name: "查询占用", exact: true }).click();
   await page.getByRole("cell", { name: "合成教室占用", exact: true }).waitFor();
   ok("校园响应合成测试：成绩与教室级联查询");
-  await page.getByRole("button", { name: "我的课表", exact: true }).click();
+  await page.getByRole("button", { name: "日程日历", exact: true }).click();
   await app.evaluate(({ session }) => {
     session.fromPartition("veritas-school").fetch = async () =>
       new Response("unavailable", { status: 500 });
   });
   await page.locator('summary[aria-label="日历更多操作"]').click();
   await page.getByRole("button", { name: "同步本月课表", exact: true }).click();
-  await page.getByRole("status").filter({ hasText: "HTTP 500" }).waitFor();
+  await page.getByRole("alert").filter({ hasText: "HTTP 500" }).waitFor();
   state = await page.evaluate(() => window.veritas.call("state"));
   assert.equal(state.courses.length, 1);
   ok("校园响应合成测试：课表解析、同步失败保留缓存");
-  await page.getByRole("button", { name: "登录设置", exact: true }).click();
+  await page.getByRole("button", { name: "教务服务", exact: true }).click();
+  await page.getByRole("button", { name: "学校连接", exact: true }).click();
   await page.getByLabel("学校账号（可选）").fill("synthetic-user");
   await page.getByLabel("学校密码（可选）").fill("synthetic-password");
   await page.getByRole("button", { name: "保存登录设置", exact: true }).click();

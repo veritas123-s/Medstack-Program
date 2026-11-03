@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { HOME, isSchoolURL } from "./campus.mjs";
+import { HOME, isSchoolURL, schoolAuthRequired } from "./campus.mjs";
 export const EXAM_URL = "https://jwstu.shsmu.edu.cn/Home/PJExam";
 export const EXAM_VPN_URL = HOME + "/Home/PJExam";
 const clean = (x) =>
@@ -210,13 +210,7 @@ export class ExamService {
     this.timer = null;
   }
 }
-export async function readExamPage({
-  BrowserWindow,
-  session,
-  restore,
-  allowed,
-}) {
-  await restore();
+export async function readExamPage({ BrowserWindow, session, allowed }) {
   if (!allowed()) throw Error("请先登录");
   const win = new BrowserWindow({
     show: false,
@@ -238,8 +232,14 @@ export async function readExamPage({
   }, 25_000);
   try {
     await win.loadURL(EXAM_VPN_URL);
-    if (!win.webContents.getURL().includes("/Home/PJExam"))
-      throw Error("请在校园模块完成学校登录后重新同步考试");
+    const url = new URL(win.webContents.getURL());
+    if (/login|cas/i.test(url.pathname)) throw schoolAuthRequired();
+    const loginForm = await win.webContents.executeJavaScript(
+      "!!document.querySelector('input[name=\"username\"]') && !!document.querySelector('input[type=\"password\"]')",
+    );
+    if (loginForm) throw schoolAuthRequired();
+    if (!url.pathname.endsWith("/Home/PJExam"))
+      throw Error("学校未返回考试页，旧结果保留");
     // Read only DOM tables from the official page after its own scripts settle.
     return await win.webContents.executeJavaScript(
       `new Promise(resolve=>{let attempts=0;const read=()=>{const tables=[...document.querySelectorAll('table')].map(t=>({rows:[...t.rows].map(r=>[...r.cells].map(c=>c.innerText.trim()))}));const text=document.body.innerText.slice(0,30000);const selected=id=>{const s=document.querySelector(id);return s?.selectedOptions?.[0]?.textContent||s?.value||''};const ready=tables.some(t=>{const i=t.rows.findIndex(r=>r.some(c=>/考试课程|课程名称|考试科目/.test(c)));return i>=0&&t.rows.slice(i+1).some(r=>(r.length===t.rows[i].length&&!/载入|加载|Loading/i.test(r.join('')))||/暂无|无记录|没有找到|没有数据/.test(r.join('')))});if(ready||++attempts>=24)resolve({tables,text,academicYear:selected('#Grade'),semester:selected('#Semester')});else setTimeout(read,500)};read()})`,

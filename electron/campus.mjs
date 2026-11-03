@@ -4,6 +4,11 @@ export const HOME =
 export const ROOMS =
   "https://webvpn2.shsmu.edu.cn/https/77726476706e69737468656265737421faf15b8469236043731dc7a99c406d362c";
 export const ENTRY = `${HOME}/Home/Timetable`;
+export function schoolAuthRequired() {
+  return Object.assign(new Error("学校会话需要重新认证"), {
+    code: "AUTH_REQUIRED",
+  });
+}
 export function isSchoolURL(raw) {
   try {
     const u = new URL(raw);
@@ -85,6 +90,7 @@ export async function schoolJSON(ses, base, route, params = {}) {
   let response;
   try {
     response = await ses.fetch(url.href, {
+      credentials: "include",
       redirect: "manual",
       signal: AbortSignal.timeout(25000),
       headers: {
@@ -96,9 +102,7 @@ export async function schoolJSON(ses, base, route, params = {}) {
     throw new Error("连接未完成：请检查网络，并在学校窗口完成登录后重试。");
   }
   if ([301, 302, 303, 307, 308, 401, 403].includes(response.status)) {
-    const error = new Error("学校会话需要重新认证");
-    error.code = "AUTH_REQUIRED";
-    throw error;
+    throw schoolAuthRequired();
   }
   if (!response.ok)
     throw new Error(`学校返回 HTTP ${response.status}，请检查登录状态。`);
@@ -107,10 +111,6 @@ export async function schoolJSON(ses, base, route, params = {}) {
   try {
     return JSON.parse(body);
   } catch {
-    const error = new Error(
-      "登录可能已过期。请在学校窗口重新登录，原有数据已保留。",
-    );
-    error.code = "AUTH_REQUIRED";
-    throw error;
+    throw schoolAuthRequired();
   }
 }

@@ -1,4 +1,5 @@
 import Panel from "../../shared/Panel.jsx";
+import ActionMenu from "../../shared/ActionMenu.jsx";
 import { courseRelevance } from "../../learning-policy.mjs";
 import React, { useState } from "react";
 import {
@@ -136,37 +137,41 @@ export default function NotificationsPage({
             </small>
           </div>
           <div className="agenda-actions">
-            <button
-              className="button"
-              disabled={busy || l.busy}
-              onClick={() => run("learning.open")}
-            >
-              <QrCode size={16} />
-              {l.connected ? "重新扫码 / 打开网页版" : "学习通扫码登录"}
-            </button>
+            {!l.connected && (
+              <button
+                className="button"
+                disabled={busy || l.busy}
+                onClick={() => run("learning.open")}
+              >
+                <QrCode size={16} />
+                学习通扫码登录
+              </button>
+            )}
             <button
               className="button primary"
-              disabled={busy || l.busy}
+              disabled={busy || l.busy || !l.connected}
               onClick={() => run("learning.sync")}
             >
               <RefreshCw size={16} />
               {l.busy ? "读取中…" : "立即同步"}
             </button>
-            <button
-              className="text-button"
-              onClick={() => run("learning.open", { kind: "notices" })}
-            >
-              官方通知 <ArrowUpRight size={14} />
-            </button>
-            {l.connected && (
+            <ActionMenu label="学习通更多操作">
               <button
                 className="text-button"
-                disabled={busy || l.busy}
-                onClick={() => run("learning.logout")}
+                onClick={() => run("learning.open", { kind: "notices" })}
               >
-                断开连接
+                官方通知 <ArrowUpRight size={14} />
               </button>
-            )}
+              {(l.connected || l.needsLogin) && (
+                <button
+                  className="text-button"
+                  disabled={busy || l.busy}
+                  onClick={() => run("learning.logout")}
+                >
+                  断开连接
+                </button>
+              )}
+            </ActionMenu>
           </div>
           <details className="help-disclosure">
             <summary>同步范围与日期说明</summary>

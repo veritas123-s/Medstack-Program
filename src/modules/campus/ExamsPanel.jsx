@@ -1,14 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import Panel from "../../shared/Panel.jsx";
 export default function ExamsPanel({ state, call }) {
-  const [error, setError] = useState("");
-  const sync = () =>
-    call("school.exams")
-      .then(() => setError(""))
-      .catch((e) => setError(e.message));
-  useEffect(() => {
-    sync();
-  }, []);
+  const sync = () => call("school.exams").catch(() => {});
   const data = state.exams || {},
     items = data.items || [];
   return (
@@ -34,9 +27,9 @@ export default function ExamsPanel({ state, call }) {
           : "尚未同步"}{" "}
         · 登录期间每30分钟同步
       </p>
-      {(error || data.error) && (
+      {data.error && (
         <p className="error" role="alert">
-          {error || data.error}
+          {data.error}
         </p>
       )}
       {items.length > 0 ? (
@@ -67,7 +60,7 @@ export default function ExamsPanel({ state, call }) {
         <p>
           {data.syncedAt && !data.error
             ? "学校当前页面未列出考试"
-            : "登录学校后同步考试安排"}
+            : "考试同步后会显示在日历。"}
         </p>
       )}
     </Panel>

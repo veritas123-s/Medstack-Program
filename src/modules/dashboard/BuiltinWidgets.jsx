@@ -127,8 +127,8 @@ export function CoursesWidget({ data, actions }) {
     <Panel className="panel">
       <div className="panel-heading">
         <h3>今日课程</h3>
-        <button className="text-button" onClick={() => setPage("campus")}>
-          校园 <ArrowUpRight size={14} />
+        <button className="text-button" onClick={() => setPage("calendar")}>
+          日历 <ArrowUpRight size={14} />
         </button>
       </div>
       {state.courses.filter((c) => c.start.slice(0, 10) === today).length ? (

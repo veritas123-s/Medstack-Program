@@ -5,7 +5,6 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Bell,
   Plus,
   BookOpen,
   CheckCircle2,
@@ -14,7 +13,6 @@ import {
   Undo2,
   RefreshCw,
   Pencil,
-  Play,
 } from "lucide-react";
 import { beijingDay } from "../../briefing.mjs";
 import {
@@ -28,17 +26,10 @@ import {
 import "./calendar.css";
 import { Modal } from "../../components.jsx";
 import { courseKey } from "../../domain/content.mjs";
-import { agenda } from "../../agenda.mjs";
 import EventEditor from "./EventEditor.jsx";
 import CalendarExchange from "./CalendarExchange.jsx";
 const weekdays = ["一", "二", "三", "四", "五", "六", "日"];
-export default function CalendarPage({
-  state,
-  setPage,
-  widgetActions,
-  call,
-  embedded = false,
-}) {
+export default function CalendarPage({ state, setPage, widgetActions, call }) {
   const today = beijingDay();
   const [exchangeOpen, setExchangeOpen] = useState(false);
   const [detail, setDetail] = useState(null),
@@ -98,7 +89,7 @@ export default function CalendarPage({
     const dayEvents = eventsOnDay(events, day),
       tasks = dayEvents.filter((e) => e.kind === "task"),
       courses = dayEvents.filter((e) => e.kind === "course");
-    const previewLimit = embedded ? 1 : 2;
+    const previewLimit = 2;
     return (
       <button
         type="button"
@@ -150,12 +141,7 @@ export default function CalendarPage({
     );
   };
   const dayList = (
-    <Panel
-      className={
-        embedded ? "calendar-agenda embedded-agenda" : "panel calendar-agenda"
-      }
-      aria-label="所选日期明细"
-    >
+    <Panel className="panel calendar-agenda" aria-label="所选日期明细">
       <header>
         <div>
           <p className="eyebrow">{date === today ? "今天" : date} · 日程明细</p>
@@ -290,20 +276,15 @@ export default function CalendarPage({
       {exchangeOpen && (
         <CalendarExchange call={call} onClose={() => setExchangeOpen(false)} />
       )}
-      {!embedded && (
-        <div className="page-heading">
-          <div>
-            <h1>日程日历</h1>
-          </div>
-          <button className="button" onClick={() => setExchangeOpen(true)}>
-            导入 / 导出日历
-          </button>
+      <div className="page-heading">
+        <div>
+          <h1>日程日历</h1>
         </div>
-      )}
-      <Panel
-        className={`panel calendar-panel ${embedded ? "home-calendar" : ""}`}
-        data-calendar="unified"
-      >
+        <button className="button" onClick={() => setExchangeOpen(true)}>
+          导入 / 导出日历
+        </button>
+      </div>
+      <Panel className="panel calendar-panel" data-calendar="unified">
         <header className="calendar-toolbar">
           <div className="calendar-navigation">
             <button
@@ -384,14 +365,16 @@ export default function CalendarPage({
               <Trash2 size={14} />
               日程回收站
             </button>
-            <button className="text-button" onClick={() => setPage("campus")}>
-              校园连接
-            </button>
           </ActionMenu>
         </div>
         {error && (
           <p role="alert" className="error">
             {error}
+            {state.campusAuth?.phase === "attention" && (
+              <button className="text-button" onClick={() => setPage("campus")}>
+                前往教务服务
+              </button>
+            )}
           </p>
         )}
         <div className="calendar-options">
@@ -492,34 +475,9 @@ export default function CalendarPage({
           </div>
           {dayList}
         </div>
-        {embedded && (
-          <div className="home-next-action">
-            <span>
-              <small>接下来</small>
-              <b>{agenda(state, state.learning).recommendation.title}</b>
-            </span>
-            <button
-              className="button small"
-              onClick={() => {
-                const r = agenda(state, state.learning).recommendation;
-                if (r.action === "start")
-                  run("timer", {
-                    action: "start",
-                    mode: "focus",
-                    taskId: r.taskId,
-                    durationMinutes: r.minutes,
-                  }).then((result) => result && setPage("focus"));
-                else setPage(r.action);
-              }}
-            >
-              <Play size={14} />
-              开始安排
-            </button>
-          </div>
-        )}
       </Panel>
 
-      {!embedded && showTasks && unscheduled.length > 0 && (
+      {showTasks && unscheduled.length > 0 && (
         <Panel
           className="panel calendar-unscheduled"
           title="待安排"

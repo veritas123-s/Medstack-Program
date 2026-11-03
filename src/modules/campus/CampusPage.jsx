@@ -1,26 +1,16 @@
 import Panel from "../../shared/Panel.jsx";
 import React, { useState } from "react";
 import {
-  ChevronLeft,
-  ChevronRight,
   RefreshCw,
   LogIn,
   CalendarDays,
   GraduationCap,
   DoorOpen,
-  MapPin,
   KeyRound,
-  ShieldCheck,
 } from "lucide-react";
-import { dayKey, addDays, monday } from "../../domain.mjs";
+import { dayKey } from "../../domain.mjs";
 import { Empty, Modal } from "../../components.jsx";
-import CalendarPage from "../notifications/CalendarPage.jsx";
 import ExamsPanel from "./ExamsPanel.jsx";
-const dateLabel = (s) =>
-  new Date(`${s}T12:00:00`).toLocaleDateString("zh-CN", {
-    month: "long",
-    day: "numeric",
-  });
 function LoginSettings({ state, call, onClose }) {
   const [username, setUsername] = useState(""),
     [password, setPassword] = useState(""),
@@ -28,7 +18,13 @@ function LoginSettings({ state, call, onClose }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   return (
-    <Modal title="校园登录设置" onClose={onClose}>
+    <Modal title="学校连接" onClose={onClose}>
+      <div className="campus-connections">
+        <span role="status">{state.campusAuth?.message}</span>
+        <button className="button" onClick={() => call("school.open")}>
+          <LogIn size={16} /> 打开学校验证
+        </button>
+      </div>
       <form
         onSubmit={async (e) => {
           e.preventDefault();
@@ -50,8 +46,7 @@ function LoginSettings({ state, call, onClose }) {
         }}
       >
         <p className="hint">
-          先在学校窗口登录一次，医栈通
-          会加密记住会话。填写以下可选账号后，会话失效时还会尝试自动认证；学校要求验证码时由你完成验证。
+          登录后复用学校会话。也可保存账号与密码，在会话过期时由医栈通后台重新登录。
         </p>
         <label>
           学校账号（可选）
@@ -80,10 +75,7 @@ function LoginSettings({ state, call, onClose }) {
             onChange={(e) => setRemember(e.target.checked)}
           />
         </label>
-        <p className="hint">
-          使用 Windows
-          当前账户加密。已有密码不会回显，也不会进入备份或快报；两项留空则保留现有设置。
-        </p>
+        <p className="hint">使用系统加密保存。两项留空可保留已保存的账号。</p>
         {error && <p className="error">{error}</p>}
         <div className="modal-actions">
           <button
@@ -112,11 +104,9 @@ function LoginSettings({ state, call, onClose }) {
     </Modal>
   );
 }
-export default function Campus({ state, call, setPage, widgetActions }) {
-  const [tab, setTab] = useState("courses"),
-    [date, setDate] = useState(dayKey()),
+export default function Campus({ state, call }) {
+  const [tab, setTab] = useState("exams"),
     [busy, setBusy] = useState(false),
-    [detail, setDetail] = useState(null),
     [year, setYear] = useState(() => {
       const d = new Date();
       const y = d.getFullYear() - (d.getMonth() < 8 ? 1 : 0);
@@ -124,9 +114,6 @@ export default function Campus({ state, call, setPage, widgetActions }) {
     }),
     [semester, setSemester] = useState(1),
     [loginSettings, setLoginSettings] = useState(false);
-  const start = monday(date),
-    end = addDays(start, 7),
-    days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
   const run = async (fn) => {
     setBusy(true);
     try {
@@ -135,51 +122,27 @@ export default function Campus({ state, call, setPage, widgetActions }) {
       setBusy(false);
     }
   };
-  const coverage = days.every((d) =>
-    state.courseRanges.some((r) => r.start <= d && r.end > d),
-  );
-  const last = state.courseRanges
-    .filter((r) => r.start < end && r.end > start)
-    .sort((a, b) => b.syncedAt - a.syncedAt)[0];
   return (
     <>
       <div className="page-heading">
         <div>
-          <h1>校园与课表</h1>
+          <h1>教务服务</h1>
         </div>
-        <button className="button primary" onClick={() => call("school.open")}>
-          <LogIn size={16} />
-          打开学校登录
-        </button>
+        <div className="inline">
+          <button
+            className="text-button"
+            onClick={() => call("school.canvas.open")}
+          >
+            Canvas
+          </button>
+          <button className="button" onClick={() => setLoginSettings(true)}>
+            <KeyRound size={15} />
+            学校连接{state.campusAuth?.phase === "attention" ? " · 待验证" : ""}
+          </button>
+        </div>
       </div>
-      <div className="campus-connections">
-        <span className="campus-status" title={state.campusAuth?.message || ""}>
-          学校 ·{" "}
-          {state.campusAuth?.phase === "connected"
-            ? "已连接"
-            : state.campusAuth?.hasSession
-              ? "已记住会话"
-              : "未连接"}
-        </span>
-        <button className="button" onClick={() => setLoginSettings(true)}>
-          <KeyRound size={15} />
-          登录设置
-        </button>
-        <button className="button primary" onClick={() => setPage("learning")}>
-          学习通{state.learning?.connected ? " · 已连接" : " · 连接"}
-        </button>
-        <button className="button" onClick={() => call("school.canvas.open")}>
-          Canvas
-        </button>
-      </div>
-      {state.campusAuth?.phase === "error" && state.campusAuth?.message && (
-        <p className="campus-message" role="status">
-          {state.campusAuth.message}
-        </p>
-      )}
       <div className="tabs">
         {[
-          ["courses", "我的课表", CalendarDays],
           ["exams", "考试查询", CalendarDays],
           ["scores", "成绩查询", GraduationCap],
           ["rooms", "教室查询", DoorOpen],
@@ -200,9 +163,6 @@ export default function Campus({ state, call, setPage, widgetActions }) {
           call={call}
           onClose={() => setLoginSettings(false)}
         />
-      )}
-      {tab === "courses" && (
-        <CalendarPage {...{ state, call, setPage, widgetActions }} embedded />
       )}
       {tab === "exams" && <ExamsPanel state={state} call={call} />}
       {tab === "scores" && (
@@ -290,13 +250,6 @@ export default function Campus({ state, call, setPage, widgetActions }) {
         </Panel>
       )}
       {tab === "rooms" && <Rooms call={call} />}
-      {detail && (
-        <Modal title={detail.title} onClose={() => setDetail(null)}>
-          <p>教师：{detail.teacher || "学校未返回"}</p>
-          <p>学院：{detail.college || "学校未返回"}</p>
-          <p className="pre-wrap">{detail.content}</p>
-        </Modal>
-      )}
     </>
   );
 }

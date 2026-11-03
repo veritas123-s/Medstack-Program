@@ -303,10 +303,7 @@ else {
           clearTimeout(learning.loginSync);
           learning.window?.destroy();
         }
-        if (auth) {
-          auth.generation++;
-          auth.window?.destroy();
-        }
+        auth?.cancel();
         store.change((s) => domain.timerAction(s, "pause"));
         broadcast();
       };
@@ -321,6 +318,8 @@ else {
           personalReady = accounts.authenticated;
           if (!testMode && personalReady) news?.start();
           if (!testMode && personalReady) exams?.start();
+          if (!testMode && personalReady && learning.status().connected)
+            learning.sync().catch(() => {});
         }
         broadcast();
       }
@@ -421,15 +420,13 @@ else {
         changed: broadcast,
         allowed: () => accounts.authenticated && personalReady,
         readPage: () =>
-          readExamPage({
-            BrowserWindow,
-            session: schoolSession,
-            restore: async () => {
-              if (!auth.status().hasSession)
-                throw Error("请先在校园模块完成学校登录");
-            },
-            allowed: () => accounts.authenticated && personalReady,
-          }),
+          auth.withSession(() =>
+            readExamPage({
+              BrowserWindow,
+              session: schoolSession,
+              allowed: () => accounts.authenticated && personalReady,
+            }),
+          ),
       });
       const { AssistantService } = await import("./assistant-service.mjs");
       assistant = new AssistantService({
@@ -569,7 +566,6 @@ else {
           )
             learning.sync().catch(() => {});
         };
-        setTimeout(syncLearning, 15000).unref();
         setInterval(syncLearning, 30 * 60000).unref();
       }
       tray = new Tray(

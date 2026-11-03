@@ -65,7 +65,8 @@ export class LearningService {
         ...x,
         ...(x.kind === "assignment" ? { taskId: learningTaskId(x.id) } : {}),
       })),
-      connected: !!this.secrets.data.cookies?.length,
+      connected: !this.needsLogin && !!this.secrets.data.cookies?.length,
+      needsLogin: !!this.needsLogin,
       busy: this.busy,
       message: this.secrets.warning || this.message,
     };
@@ -143,7 +144,7 @@ export class LearningService {
     if (this.window && !this.window.isDestroyed()) {
       this.window.show();
       this.window.focus();
-      if (kind === "notices") await this.window.loadURL(url);
+      if (kind === "notices" || this.needsLogin) await this.window.loadURL(url);
       return;
     }
     const w = (this.window = new this.BrowserWindow({
@@ -169,6 +170,7 @@ export class LearningService {
     w.webContents.on("did-finish-load", () => {
       this.persist().catch(() => {});
       if (!/passport|\/login/.test(w.webContents.getURL())) {
+        if (this.needsLogin) this.lastAttempt = 0;
         clearTimeout(this.loginSync);
         this.loginSync = setTimeout(() => this.sync().catch(() => {}), 1800);
       }
@@ -185,11 +187,19 @@ export class LearningService {
       if (!isLearningURL(url)) throw Error("学习通重定向超出允许域名");
       const response = await this.session.fetch(url, {
         ...options,
+        credentials: "include",
         redirect: "follow",
         signal: AbortSignal.timeout(20000),
       });
       if (response.url && !isLearningURL(response.url))
         throw Error("学习通响应超出允许域名");
+      if (
+        response.status === 401 ||
+        (response.url && /passport|\/login/.test(response.url))
+      )
+        throw Object.assign(Error("学习通会话已失效"), {
+          code: "AUTH_REQUIRED",
+        });
       if (response.status >= 300 && response.status < 400) {
         url = new URL(response.headers.get("location"), url).href;
         continue;
@@ -251,6 +261,8 @@ export class LearningService {
       );
       const options = this.getOptions?.() || {};
       const catalog = parseCourses(courseResponse, { includeArchived: true });
+      if (gen !== this.generation) return;
+      this.needsLogin = false;
       const courses = catalog.filter(
         (c) =>
           options.courseChoices?.[c.key] !== "hide" &&
@@ -415,9 +427,12 @@ export class LearningService {
       this.message = `作业覆盖 ${covered}/${courses.length} 门所选课程（账户共 ${courseResponse.channelList.length} 门）；${noticeOk ? "已读取最近通知（最多 5 页）" : "通知待重试"}${warnings.length ? "。部分数据未更新，保留历史缓存。" : ""}`;
       await this.persist();
       await this.onSynced?.(this.data.items);
-    } catch {
-      this.message =
-        "同步未完成，保留上次缓存。请扫码确认登录后重试；平台格式变化时需更新连接器。";
+    } catch (error) {
+      if (gen !== this.generation) return;
+      if (error.code === "AUTH_REQUIRED") this.needsLogin = true;
+      this.message = this.needsLogin
+        ? "学习通会话已过期，请扫码恢复。上次同步的数据仍可查看。"
+        : "同步未完成，保留上次缓存。请检查网络后重试。";
       throw Error(this.message);
     } finally {
       this.busy = false;
@@ -427,6 +442,8 @@ export class LearningService {
   async logout() {
     if (this.busy) throw Error("请等待同步结束再断开连接");
     this.disconnected = true;
+    this.needsLogin = false;
+    this.lastAttempt = 0;
     this.generation++;
     clearTimeout(this.pending);
     clearTimeout(this.loginSync);

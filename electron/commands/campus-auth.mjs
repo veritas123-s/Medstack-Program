@@ -17,7 +17,7 @@ export default async function execute(action, p, context) {
     await shell.openExternal("https://oc.sjtu.edu.cn/login/canvas");
     return { ok: true };
   } else if (action === "school.open") {
-    await auth.open(true);
+    await auth.open();
     return { ok: true };
   } else if (action === "school.login.configure") {
     auth.configure(p);

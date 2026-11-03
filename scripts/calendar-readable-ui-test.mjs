@@ -37,7 +37,7 @@ try {
     await tour.getByRole("button", { name: "跳过", exact: true }).click();
   await page
     .locator(".sidebar")
-    .getByRole("button", { name: "校园与课表", exact: true })
+    .getByRole("button", { name: "日程日历", exact: true })
     .click();
   for (const width of [1440, 1100, 960, 800]) {
     await page.setViewportSize({ width, height: 720 });
