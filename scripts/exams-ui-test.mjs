@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { launchAuthenticated } from "./account-test-fixture.mjs";
+import { currentExamTerm } from "../electron/exams.mjs";
 const env = {
   ...process.env,
   VERITAS_TEST: "1",
@@ -22,7 +23,10 @@ try {
   const tour = page.getByRole("dialog", { name: "医栈通 新手教程" });
   if (await tour.isVisible())
     await tour.getByRole("button", { name: "跳过", exact: true }).click();
-  await app.evaluate(async ({ session }) => {
+  const term = currentExamTerm();
+  const testYear =
+    Number(term.academicYear.slice(0, 4)) + (term.semester === 2 ? 1 : 0);
+  await app.evaluate(async ({ session }, term) => {
     const ses = session.fromPartition("veritas-school");
     let authenticated = false;
     ses.syntheticLogins = 0;
@@ -63,10 +67,20 @@ try {
         );
       }
       return html(
-        '<!doctype html><meta charset="utf-8"><h1>考试安排</h1><select id="Grade"><option selected>2024-2025学年</option></select><select id="Semester"><option selected>第一学期</option></select><table><tr><th>考试课程</th><th>考试时间</th><th>考试地点</th></tr><tr><td>合成考试课程</td><td>10月17日(周四)09:00--10:30</td><td>西区合成教室</td></tr></table>',
+        `<!doctype html><meta charset="utf-8"><h1>考试安排</h1>
+        <select id="Grade"><option selected>2020-2021学年</option><option>${term.academicYear}学年</option></select>
+        <select id="Semester"><option selected value="${3 - term.semester}">旧学期</option><option value="${term.semester}">${term.semester === 1 ? "第一学期" : "第二学期"}</option></select>
+        <button id="lookup">查询</button><table><thead><tr><th>考试课程</th><th>考试时间</th><th>考试地点</th></tr></thead>
+        <tbody id="examrows"><tr><td colspan="3">没有找到匹配的记录</td></tr></tbody></table>
+        <script>document.querySelector("#lookup").onclick=()=>{
+          if(document.querySelector("#Grade").value!=="${term.academicYear}学年" ||
+             document.querySelector("#Semester").value!=="${term.semester}")return;
+          setTimeout(()=>{document.querySelector("#examrows").innerHTML=
+           "<tr><td>合成考试课程</td><td>10月17日09:00--10:30</td><td>合成教室</td></tr>";},850);
+        };</script>`,
       );
     });
-  });
+  }, term);
   await page.getByRole("button", { name: "教务服务", exact: true }).click();
   await page.getByRole("button", { name: "学校连接", exact: true }).click();
   await page.getByLabel("学校账号（可选）").fill("synthetic-user");
@@ -101,7 +115,7 @@ try {
     state.events.filter((x) => x.calendarUid.startsWith("school-exam:")).length,
     1,
   );
-  assert.equal(state.exams.items[0].start, "2024-10-17T09:00");
+  assert.equal(state.exams.items[0].start, testYear + "-10-17T09:00");
   const exam = state.events.find((x) =>
     x.calendarUid.startsWith("school-exam:"),
   );

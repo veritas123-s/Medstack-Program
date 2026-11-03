@@ -4,6 +4,161 @@ import crypto from "node:crypto";
 import { HOME, isSchoolURL, schoolAuthRequired } from "./campus.mjs";
 export const EXAM_URL = "https://jwstu.shsmu.edu.cn/Home/PJExam";
 export const EXAM_VPN_URL = HOME + "/Home/PJExam";
+export function currentExamTerm(date = new Date()) {
+  const [year, month] = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+  })
+    .format(date)
+    .split("-")
+    .map(Number);
+  const start = month >= 8 ? year : year - 1;
+  return {
+    academicYear: `${start}-${start + 1}`,
+    semester: month >= 8 || month === 1 ? 1 : 2,
+  };
+}
+
+async function queryExamDocument(term) {
+  const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const empty = /暂无|无记录|没有数据|没有找到|无匹配/;
+  const select = (id, match) => {
+    const field = document.querySelector(id);
+    const option = [...(field?.options || [])].find(match);
+    if (!option) return false;
+    if (field.value !== option.value) {
+      field.value = option.value;
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return true;
+  };
+  const gradeMatches = (option) =>
+    option &&
+    (option.textContent
+      .replace(/\s/g, "")
+      .replace(/[–—]/g, "-")
+      .includes(term.academicYear) ||
+      option.value === term.academicYear);
+  const semesterMatches = (option) =>
+    option &&
+    (option.value === String(term.semester) ||
+      option.textContent.includes(
+        term.semester === 1 ? "第一学期" : "第二学期",
+      ));
+  const examTable = () =>
+    [...document.querySelectorAll("table")].find((table) =>
+      [...table.rows].some(
+        (row) =>
+          /考试课程|课程名称|考试科目|科目名称/.test(row.innerText) &&
+          /考试时间|考试日期/.test(row.innerText),
+      ),
+    );
+  const snapshot = () => {
+    const table = examTable();
+    return {
+      tables: table
+        ? [
+            {
+              rows: [...table.rows].map((row) =>
+                [...row.cells].map((cell) => cell.innerText.trim()),
+              ),
+            },
+          ]
+        : [],
+      text: document.body.innerText.slice(0, 30000),
+      academicYear:
+        document.querySelector("#Grade")?.selectedOptions[0]?.textContent ||
+        term.academicYear,
+      semester:
+        document.querySelector("#Semester")?.selectedOptions[0]?.textContent ||
+        String(term.semester),
+    };
+  };
+  let responseReceived = false;
+  let responseFailed = false;
+  const table = examTable();
+  const widget =
+    table && typeof window.jQuery === "function" ? window.jQuery(table) : null;
+  widget?.on("load-success.bs.table", () => {
+    responseReceived = true;
+  });
+  widget?.on("load-error.bs.table", () => {
+    responseFailed = true;
+  });
+  const before = JSON.stringify(snapshot().tables);
+  const oldGrade = document.querySelector("#Grade")?.value;
+  const oldSemester = document.querySelector("#Semester")?.value;
+  for (let i = 0; i < 12 && !select("#Grade", gradeMatches); i++)
+    await pause(150);
+  if (!select("#Grade", gradeMatches))
+    return { error: "学校页面没有提供当前学年，旧考试安排已保留" };
+  for (let i = 0; i < 12 && !select("#Semester", semesterMatches); i++)
+    await pause(150);
+  if (!select("#Semester", semesterMatches))
+    return { error: "学校页面没有提供当前学期，旧考试安排已保留" };
+  const changed =
+    oldGrade !== document.querySelector("#Grade")?.value ||
+    oldSemester !== document.querySelector("#Semester")?.value;
+  const query = [
+    ...document.querySelectorAll(
+      "button, input[type=button], input[type=submit], a[role=button], a.btn",
+    ),
+  ].filter(
+    (node) =>
+      /^(查询|搜索|检索|查询考试|考试查询)$/.test(
+        (node.innerText || node.value || "").replace(/\s/g, ""),
+      ) &&
+      !node.disabled &&
+      node.getClientRects().length,
+  );
+  if (query.length === 1) {
+    responseReceived = false;
+    responseFailed = false;
+    query[0].click();
+  } else if (!changed && widget?.data("bootstrap.table")) {
+    widget.bootstrapTable("refresh");
+  }
+  let last = "";
+  let stable = 0;
+  for (let i = 0; i < 36; i++) {
+    await pause(350);
+    if (responseFailed) return { error: "学校考试查询失败，旧结果已保留" };
+    const page = snapshot();
+    const signature = JSON.stringify(page.tables);
+    stable = signature === last ? stable + 1 : 0;
+    last = signature;
+    const rows = page.tables[0]?.rows || [];
+    const hasRows = rows
+      .slice(1)
+      .some((row) => row.length > 1 && !empty.test(row.join("")));
+    const showsEmpty = rows.slice(1).some((row) => empty.test(row.join("")));
+    const loading = [
+      ...document.querySelectorAll(
+        ".fixed-table-loading,.dataTables_processing,[aria-busy=true]",
+      ),
+    ].some(
+      (node) =>
+        node.getClientRects().length &&
+        getComputedStyle(node).visibility !== "hidden",
+    );
+    const confirmedTerm =
+      gradeMatches(document.querySelector("#Grade")?.selectedOptions[0]) &&
+      semesterMatches(document.querySelector("#Semester")?.selectedOptions[0]);
+    const refreshed = responseReceived || signature !== before;
+    if (
+      confirmedTerm &&
+      !loading &&
+      stable >= 2 &&
+      ((hasRows && (refreshed || (!changed && !query.length))) ||
+        (showsEmpty &&
+          (responseReceived ||
+            (refreshed && /总共\s*0\s*条记录/.test(page.text)))))
+    )
+      return page;
+  }
+  return { error: "学校尚未返回可确认的本学期考试结果，旧结果已保留" };
+}
 const clean = (x) =>
   String(x || "")
     .replace(/\s+/g, " ")
@@ -44,7 +199,7 @@ function interval(raw, context = {}) {
 }
 export function parseExamTables(page) {
   if (!page || !Array.isArray(page.tables) || !/考试/.test(page.text || ""))
-    throw Error("考试页面未能读取，请先完成学校登录；旧结果保留");
+    throw Error("考试页面未能读取，旧结果保留");
   const items = [];
   let recognized = false;
   for (const table of page.tables) {
@@ -97,11 +252,10 @@ export function parseExamTables(page) {
       });
     }
   }
-  if (!recognized)
-    throw Error("尚未识别学校考试表格，请打开官方考试页核对；旧结果保留");
+  if (!recognized) throw Error("尚未识别学校考试表格，旧结果保留");
   const total = String(page.text).match(/总共\s*(\d+)\s*条记录/);
   if (total && Number(total[1]) > items.length)
-    throw Error("学校页面仅返回部分考试，请在官方页核对完整安排；旧结果保留");
+    throw Error("学校页面仅返回部分考试，旧结果保留");
   return [...new Map(items.map((x) => [x.id, x])).values()];
 }
 export function mergeExamEvents(state, items, previousItems = []) {
@@ -176,12 +330,22 @@ export class ExamService {
     const generation = this.generation;
     this.pending = (async () => {
       try {
-        const items = parseExamTables(await this.readPage());
+        const page = await this.readPage();
+        const items = parseExamTables(page);
         if (generation !== this.generation || !this.allowed())
           throw Error("账号已切换，未写入考试信息");
-        const prior = this.data.items;
+        const prior =
+          this.data.academicYear === page.academicYear &&
+          this.data.semester === page.semester
+            ? this.data.items
+            : [];
         this.store.change((s) => mergeExamEvents(s, items, prior));
-        const data = { items, syncedAt: Date.now() };
+        const data = {
+          items,
+          syncedAt: Date.now(),
+          academicYear: page.academicYear,
+          semester: page.semester,
+        };
         fs.writeFileSync(this.file + ".pending", JSON.stringify(data));
         fs.renameSync(this.file + ".pending", this.file);
         this.data = data;
@@ -240,10 +404,11 @@ export async function readExamPage({ BrowserWindow, session, allowed }) {
     if (loginForm) throw schoolAuthRequired();
     if (!url.pathname.endsWith("/Home/PJExam"))
       throw Error("学校未返回考试页，旧结果保留");
-    // Read only DOM tables from the official page after its own scripts settle.
-    return await win.webContents.executeJavaScript(
-      `new Promise(resolve=>{let attempts=0;const read=()=>{const tables=[...document.querySelectorAll('table')].map(t=>({rows:[...t.rows].map(r=>[...r.cells].map(c=>c.innerText.trim()))}));const text=document.body.innerText.slice(0,30000);const selected=id=>{const s=document.querySelector(id);return s?.selectedOptions?.[0]?.textContent||s?.value||''};const ready=tables.some(t=>{const i=t.rows.findIndex(r=>r.some(c=>/考试课程|课程名称|考试科目/.test(c)));return i>=0&&t.rows.slice(i+1).some(r=>(r.length===t.rows[i].length&&!/载入|加载|Loading/i.test(r.join('')))||/暂无|无记录|没有找到|没有数据/.test(r.join('')))});if(ready||++attempts>=24)resolve({tables,text,academicYear:selected('#Grade'),semester:selected('#Semester')});else setTimeout(read,500)};read()})`,
+    const page = await win.webContents.executeJavaScript(
+      `(${queryExamDocument})(${JSON.stringify(currentExamTerm())})`,
     );
+    if (page.error) throw Error(page.error);
+    return page;
   } finally {
     clearTimeout(timer);
     if (!win.isDestroyed()) win.destroy();

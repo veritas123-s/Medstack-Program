@@ -25,7 +25,8 @@ export default function ExamsPanel({ state, call }) {
         {data.syncedAt
           ? "上次同步 " + new Date(data.syncedAt).toLocaleString("zh-CN")
           : "尚未同步"}{" "}
-        · 登录期间每30分钟同步
+        · 后台每 30 分钟同步
+        {data.academicYear && ` · ${data.academicYear} ${data.semester || ""}`}
       </p>
       {data.error && (
         <p className="error" role="alert">
@@ -59,7 +60,7 @@ export default function ExamsPanel({ state, call }) {
       ) : (
         <p>
           {data.syncedAt && !data.error
-            ? "学校当前页面未列出考试"
+            ? "学校未公布本学期考试安排"
             : "考试同步后会显示在日历。"}
         </p>
       )}

@@ -99,18 +99,22 @@ export async function schoolJSON(ses, base, route, params = {}) {
       },
     });
   } catch {
-    throw new Error("连接未完成：请检查网络，并在学校窗口完成登录后重试。");
+    throw new Error("暂时无法连接学校，请检查网络后重试。");
   }
   if ([301, 302, 303, 307, 308, 401, 403].includes(response.status)) {
     throw schoolAuthRequired();
   }
   if (!response.ok)
-    throw new Error(`学校返回 HTTP ${response.status}，请检查登录状态。`);
+    throw new Error(`学校返回 HTTP ${response.status}，请稍后重试。`);
   const body = await response.text();
   if (body.length > 8_000_000) throw new Error("学校响应过大，已停止读取");
   try {
     return JSON.parse(body);
   } catch {
-    throw schoolAuthRequired();
+    if (
+      /统一身份认证|统一认证登录|name=["'](?:username|password)["']/i.test(body)
+    )
+      throw schoolAuthRequired();
+    throw new Error("学校返回的数据格式异常，旧结果已保留。");
   }
 }

@@ -58,6 +58,7 @@ let win,
   lockedSnapshot,
   personalReady = false,
   connectorInitialization,
+  schoolCoursesTimer,
   commandRouter,
   authFlushed = false,
   quitting = false,
@@ -296,6 +297,8 @@ else {
         assistant?.cancel();
         news?.stop();
         exams?.stop();
+        clearInterval(schoolCoursesTimer);
+        schoolCoursesTimer = null;
         if (learning) {
           learning.disconnected = true;
           learning.generation++;
@@ -318,6 +321,22 @@ else {
           personalReady = accounts.authenticated;
           if (!testMode && personalReady) news?.start();
           if (!testMode && personalReady) exams?.start();
+          if (!testMode && personalReady && !schoolCoursesTimer) {
+            const syncCourses = async () => {
+              if (!accounts.authenticated || !personalReady) return;
+              const { shiftDate } = await import("../src/calendar.mjs");
+              const { beijingDay } = await import("../src/briefing.mjs");
+              const start = beijingDay().slice(0, 7) + "-01";
+              await handle("school.courses", {
+                start,
+                end: shiftDate(start, 1, "month"),
+              });
+            };
+            const run = () => syncCourses().catch(() => {});
+            schoolCoursesTimer = setInterval(run, 30 * 60_000);
+            schoolCoursesTimer.unref?.();
+            run();
+          }
           if (!testMode && personalReady && learning.status().connected)
             learning.sync().catch(() => {});
         }
