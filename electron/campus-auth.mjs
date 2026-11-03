@@ -214,10 +214,6 @@ export class CampusAuth {
   async renew() {
     if (this.pending) return this.pending;
     if (this.phase === "attention") throw new Error(this.message);
-    if (!this.vault.data.credentials) {
-      this.set("attention", "请在教务服务的「学校连接」完成验证。");
-      throw new Error(this.message);
-    }
     if (Date.now() - this.lastAttempt < 60000)
       throw new Error(
         "自动登录未完成，请在学校窗口验证后重试；不会连续尝试密码。",
@@ -252,6 +248,10 @@ export class CampusAuth {
         return result;
       };
       if ((await runForm("probe")) === "form") {
+        if (!this.vault.data.credentials) {
+          this.set("attention", "请在教务服务的「学校连接」完成验证。");
+          throw new Error(this.message);
+        }
         await runForm("fill", this.vault.data.credentials);
         const loaded = new Promise((resolve) => {
           const timer = setTimeout(resolve, 8000);

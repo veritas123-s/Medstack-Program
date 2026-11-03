@@ -26,6 +26,11 @@ try {
     const ses = session.fromPartition("veritas-school");
     let authenticated = false;
     ses.syntheticLogins = 0;
+    ses.restoreSyntheticSession = () => {
+      authenticated = false;
+      ses.syntheticChallenge = false;
+      ses.syntheticSilentResume = true;
+    };
     ses.fetch = async () =>
       authenticated
         ? Response.json({ List: [] })
@@ -42,6 +47,10 @@ try {
           u.searchParams.get("username") === "synthetic-user" &&
           u.searchParams.get("password") === "synthetic-password";
         return html("<h1>测试学校会话</h1>");
+      }
+      if (u.pathname.endsWith("/Home/Timetable") && ses.syntheticSilentResume) {
+        authenticated = true;
+        return html("<h1>已恢复测试学校会话</h1>");
       }
       if (!authenticated || ses.syntheticChallenge) {
         const challenge = ses.syntheticChallenge
@@ -127,6 +136,22 @@ try {
   assert.equal(
     await app.evaluate(
       ({ BrowserWindow }) => BrowserWindow.getAllWindows().length,
+    ),
+    1,
+  );
+  await app.evaluate(({ session }) => {
+    session.fromPartition("veritas-school").restoreSyntheticSession();
+  });
+  await page.evaluate(async () => {
+    await window.veritas.call("school.login.configure", { remember: false });
+    await window.veritas.call("school.courses", {
+      start: "2024-10-01",
+      end: "2024-11-01",
+    });
+  });
+  assert.equal(
+    await app.evaluate(
+      ({ session }) => session.fromPartition("veritas-school").syntheticLogins,
     ),
     1,
   );
