@@ -1,4 +1,5 @@
 import { ENTRY, isSchoolURL, schoolJSON } from "./campus.mjs";
+import brand from "./window-brand.cjs";
 
 function schoolLoginForm(expectedURL, action, credentials) {
   if (location.href !== expectedURL) return "changed";
@@ -170,6 +171,7 @@ export class CampusAuth {
       width: 1180,
       height: 820,
       show: visible,
+      icon: brand.icon,
       title: "医栈通 · 学校认证",
       autoHideMenuBar: true,
       webPreferences: {
@@ -179,6 +181,7 @@ export class CampusAuth {
         sandbox: true,
       },
     });
+    brand.applyWindowBrand(window);
     const guard = (e, url) => {
       if (!isSchoolURL(url)) e.preventDefault();
     };

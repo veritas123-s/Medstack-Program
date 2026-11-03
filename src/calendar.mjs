@@ -1,6 +1,7 @@
 // Calendar arithmetic uses UTC date components; schedule timestamps use Beijing time.
 import { beijingDay } from "./briefing.mjs";
 import { visibleCourses } from "./domain/content.mjs";
+import { learningSelection } from "./learning-policy.mjs";
 const DAY = 86400000;
 const key = (date) => date.toISOString().slice(0, 10);
 const utc = (day) => Date.parse(`${day}T12:00:00Z`);
@@ -47,7 +48,21 @@ export function calendarEvents(
   { showCompleted = true, showTasks = true, showCourses = true } = {},
 ) {
   const result = [];
-  if (showTasks)
+  if (showTasks) {
+    const deadlines = state.learning?.items?.length
+      ? learningSelection(state, state.learning).current.filter(
+          (item) =>
+            item.kind === "assignment" &&
+            Number.isFinite(item.deadline) &&
+            item.deadline > 0 &&
+            !item.estimated &&
+            !item.yearInferred,
+        )
+      : [];
+    const linked = new Set(
+      deadlines.map((item) => item.taskId).filter(Boolean),
+    );
+    const scheduled = new Set();
     for (const task of state.tasks || []) {
       if (
         task.deletedAt ||
@@ -59,6 +74,7 @@ export function calendarEvents(
         `${task.due}T${task.dueTime || "23:59"}:00+08:00`,
       );
       if (!Number.isFinite(start)) continue;
+      scheduled.add(task.id);
       result.push({
         id: `task:${task.id}`,
         kind: "task",
@@ -72,8 +88,27 @@ export function calendarEvents(
         completed: !!task.completedAt,
         detail: task.project || "收集箱",
         task,
+        learningDeadline: linked.has(task.id),
       });
     }
+    for (const item of deadlines) {
+      if (scheduled.has(item.taskId)) continue;
+      const day = beijingDay(item.deadline);
+      result.push({
+        id: `learning-deadline:${item.id}`,
+        kind: "assignment",
+        title: item.title,
+        day,
+        lastDay: day,
+        start: item.deadline,
+        end: item.deadline,
+        clock: clock(item.deadline),
+        allDay: false,
+        completed: false,
+        detail: item.course || "超星学习通",
+      });
+    }
+  }
   if (showCourses)
     for (const [i, course] of visibleCourses(state).entries()) {
       const start = time(course.start),
@@ -107,7 +142,7 @@ export function calendarEvents(
       lastDay: beijingDay(end - 1),
       start,
       end,
-      clock: event.allDay ? '全天' : `${clock(start)}–${clock(end)}`,
+      clock: event.allDay ? "全天" : `${clock(start)}–${clock(end)}`,
       allDay: !!event.allDay,
       completed: false,
       detail: event.location,

@@ -124,6 +124,7 @@ export function createCommandRouter(context) {
           "school.detail",
           "school.rooms.options",
           "school.rooms",
+          "school.rooms.building",
         ],
         execute: campus,
       },

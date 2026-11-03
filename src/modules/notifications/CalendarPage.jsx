@@ -60,6 +60,8 @@ export default function CalendarPage({ state, setPage, widgetActions, call }) {
       state.courses,
       state.courseTrash,
       state.events,
+      state.learning,
+      state.workflows,
       showCompleted,
       showTasks,
       showCourses,
@@ -87,7 +89,9 @@ export default function CalendarPage({ state, setPage, widgetActions, call }) {
   const openTask = (task) => widgetActions.editTask(task);
   const renderDay = (day, small = false, activeMonth = month) => {
     const dayEvents = eventsOnDay(events, day),
-      tasks = dayEvents.filter((e) => e.kind === "task"),
+      tasks = dayEvents.filter(
+        (e) => e.kind === "task" || e.kind === "assignment",
+      ),
       courses = dayEvents.filter((e) => e.kind === "course");
     const previewLimit = 2;
     return (
@@ -126,7 +130,9 @@ export default function CalendarPage({ state, setPage, widgetActions, call }) {
                     ? e.clock
                     : e.kind === "task"
                       ? "任务"
-                      : "日程"}
+                      : e.kind === "assignment"
+                        ? `截止 ${e.clock}`
+                        : "日程"}
                 </span>
               </span>
             ))}
@@ -201,9 +207,11 @@ export default function CalendarPage({ state, setPage, widgetActions, call }) {
                   ? "课程"
                   : event.kind === "event"
                     ? "日程"
-                    : event.completed
-                      ? "已完成任务"
-                      : "任务截止"}
+                    : event.kind === "assignment" || event.learningDeadline
+                      ? "学习通截止"
+                      : event.completed
+                        ? "已完成任务"
+                        : "任务截止"}
               </small>
               <h3>{event.title}</h3>
               <p>
@@ -216,6 +224,14 @@ export default function CalendarPage({ state, setPage, widgetActions, call }) {
                 onClick={() => openTask(event.task)}
               >
                 查看任务
+              </button>
+            )}
+            {event.kind === "assignment" && (
+              <button
+                className="text-button"
+                onClick={() => setPage("learning")}
+              >
+                查看学习通
               </button>
             )}
             {event.kind === "course" && (

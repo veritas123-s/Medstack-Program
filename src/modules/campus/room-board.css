@@ -1,0 +1,109 @@
+.room-board .room-filters {
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+}
+.room-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.room-badge {
+  --status-color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--status-color) 15%, var(--surface));
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.room-badge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--status-color);
+}
+[data-status="free"] .room-badge,
+.room-badge[data-status="free"] {
+  --status-color: #19865c;
+}
+[data-status="busy"] .room-badge,
+.room-badge[data-status="busy"] {
+  --status-color: #c35d30;
+}
+.room-floor {
+  margin-top: 16px;
+}
+.room-floor h4 {
+  margin: 0 0 8px;
+}
+.room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 188px), 1fr));
+  gap: 8px;
+  align-items: start;
+}
+.room-card {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-width: 0;
+}
+.room-card summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 12px;
+  min-height: 75px;
+}
+.room-card summary::-webkit-details-marker {
+  display: none;
+}
+.room-card-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+.room-card-heading strong {
+  margin-right: auto;
+  overflow-wrap: anywhere;
+}
+.room-expand {
+  flex: none;
+  color: var(--muted);
+}
+.room-card[open] .room-expand {
+  transform: rotate(180deg);
+}
+.room-use,
+.room-use small,
+.room-day small {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+.room-use {
+  font-size: 13px;
+  color: var(--muted);
+}
+.room-use strong {
+  color: var(--text);
+}
+.room-day {
+  border-top: 1px solid var(--border);
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.room-day ul {
+  margin: 5px 0;
+  padding-left: 15px;
+}
+.room-day li + li {
+  margin-top: 6px;
+}
+.room-now {
+  margin-top: 6px;
+}

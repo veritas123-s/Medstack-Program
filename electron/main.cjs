@@ -18,6 +18,7 @@ const {
 const path = require("node:path");
 const fs = require("node:fs");
 const { pathToFileURL } = require("node:url");
+const { appId, icon, applyWindowBrand } = require("./window-brand.cjs");
 const APP_VERSION = app.getVersion();
 // macOS safeStorage uses the application name for its Keychain service.
 // Keep it stable across upgrades so existing encrypted account vaults remain readable.
@@ -26,7 +27,7 @@ app.setName(
     ? "Medstack"
     : `医栈通 Medstack V${APP_VERSION}`,
 );
-if (process.platform === "win32") app.setAppUserModelId("local.ai.veritas");
+if (process.platform === "win32") app.setAppUserModelId(appId);
 const testMode = process.env.VERITAS_TEST === "1";
 if (testMode && process.env.VERITAS_TEST_DATA)
   app.setPath("userData", process.env.VERITAS_TEST_DATA);
@@ -112,7 +113,7 @@ function createWindow() {
     minWidth: 1050,
     minHeight: 730,
     backgroundColor: "#f7f7f4",
-    icon: path.join(__dirname, "../assets/icon.png"),
+    icon,
     title: `医栈通 V${APP_VERSION}`,
     autoHideMenuBar: true,
     webPreferences: {
@@ -123,6 +124,7 @@ function createWindow() {
       backgroundThrottling: false,
     },
   });
+  applyWindowBrand(win);
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.webContents.on("will-navigate", (e, url) => {
     if (url !== "veritas://app/index.html") e.preventDefault();

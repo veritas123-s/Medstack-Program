@@ -1,4 +1,5 @@
 import { mergeNotices } from "../src/learning-policy.mjs";
+import brand from "./window-brand.cjs";
 import fs from "node:fs";
 import path from "node:path";
 import { learningTaskId } from "./workflows.mjs";
@@ -151,6 +152,7 @@ export class LearningService {
       width: 1150,
       height: 820,
       title: "学习通 · 官方登录",
+      icon: brand.icon,
       autoHideMenuBar: true,
       webPreferences: {
         session: this.session,
@@ -159,6 +161,7 @@ export class LearningService {
         sandbox: true,
       },
     }));
+    brand.applyWindowBrand(w);
     w.webContents.setWindowOpenHandler(({ url }) => {
       if (isLearningURL(url)) w.loadURL(url).catch(() => {});
       return { action: "deny" };

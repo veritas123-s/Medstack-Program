@@ -8,12 +8,36 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
+import { beijingDay } from "../src/briefing.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "veritas-e2e-"));
 const output = path.join(root, "test-results");
 fs.mkdirSync(output, { recursive: true });
+const assignmentDeadline = Date.now() + 86400000;
+fs.writeFileSync(
+  path.join(dataDir, "learning-cache.json"),
+  JSON.stringify({
+    version: 1,
+    items: [
+      {
+        id: "work:synthetic-calendar",
+        kind: "assignment",
+        title: "合成学习通截止",
+        deadline: assignmentDeadline,
+        course: "合成课程",
+      },
+    ],
+  }),
+);
 const env = { ...process.env, VERITAS_TEST: "1", VERITAS_TEST_DATA: dataDir };
 delete env.ELECTRON_RUN_AS_NODE;
+const launchOptions = {
+  ...(process.argv[2]
+    ? { executablePath: path.resolve(process.argv[2]), args: [] }
+    : { args: [root] }),
+  env,
+  timeout: 30000,
+};
 let app;
 const checks = [];
 const ok = (name) => {
@@ -21,7 +45,7 @@ const ok = (name) => {
   console.log(`PASS ${name}`);
 };
 try {
-  app = await launchAuthenticated({ args: [root], env, timeout: 30000 });
+  app = await launchAuthenticated(launchOptions);
   let page = await app.firstWindow();
   await page.getByRole("heading", { name: "今天的安排" }).waitFor();
   const tour = page.getByRole("dialog", { name: "医栈通 新手教程" });
@@ -173,10 +197,25 @@ try {
             4: "测试数据",
           }),
         );
-      if (url.includes("getDict"))
+      if (url.includes("getDict")) {
+        const type = new URL(url).searchParams.get("type");
         return new Response(
-          JSON.stringify({ data: [{ code: "test", name: "测试选项" }] }),
+          JSON.stringify({
+            data:
+              type === "Classroom"
+                ? [
+                    { code: "busy", name: "合成 101" },
+                    { code: "free", name: "合成 102" },
+                    { code: "unknown", name: "合成 103" },
+                  ]
+                : [{ code: "test", name: "测试选项" }],
+          }),
         );
+      }
+      const room = new URL(url).searchParams.get("classroomId");
+      if (room === "unknown")
+        return new Response("unavailable", { status: 503 });
+      if (room === "free") return Response.json({ data: [] });
       return new Response(
         JSON.stringify({
           data: [
@@ -204,19 +243,42 @@ try {
   await page.getByRole("button", { name: "查询成绩", exact: true }).click();
   await page.getByRole("cell", { name: "88", exact: true }).waitFor();
   await page.getByRole("button", { name: "教室查询", exact: true }).click();
-  await page.getByRole("button", { name: "读取校区", exact: true }).click();
   const roomSelects = page.locator(".room-filters select");
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 2; i++) {
     await roomSelects
       .nth(i)
       .locator('option[value="test"]')
       .waitFor({ state: "attached" });
     await roomSelects.nth(i).selectOption("test");
   }
-  await page.getByRole("button", { name: "查询占用", exact: true }).click();
-  await page.getByRole("cell", { name: "合成教室占用", exact: true }).waitFor();
-  ok("校园响应合成测试：成绩与教室级联查询");
+  await page.getByLabel("查看时间（北京时间）").fill("08:30");
+  await page
+    .locator('.room-card[data-status="busy"] summary')
+    .getByText("合成教室占用", { exact: true })
+    .waitFor();
+  await page
+    .locator('.room-card[data-status="free"]')
+    .getByText("合成 102", { exact: true })
+    .waitFor();
+  await page
+    .locator('.room-card[data-status="unknown"]')
+    .getByText("合成 103", { exact: true })
+    .waitFor();
+  await page.getByLabel("查看时间（北京时间）").fill("09:00");
+  await page
+    .locator('.room-card[data-status="free"]')
+    .getByText("合成 101", { exact: true })
+    .waitFor();
+  ok("校园响应合成测试：成绩、楼栋状态、用途与时段边界");
+  await page.getByLabel("查看时间（北京时间）").fill("08:30");
+  await page.screenshot({ path: path.join(output, "room-board-v625.png") });
   await page.getByRole("button", { name: "日程日历", exact: true }).click();
+  await page.getByLabel("跳转日期").fill(beijingDay(assignmentDeadline));
+  await page
+    .locator(".calendar-event.is-assignment")
+    .getByRole("heading", { name: "合成学习通截止", exact: true })
+    .waitFor();
+  ok("学习通明确截止自动进入日历，无需先加入任务");
   await app.evaluate(({ session }) => {
     session.fromPartition("veritas-school").fetch = async () =>
       new Response("unavailable", { status: 500 });
@@ -338,7 +400,7 @@ try {
   );
   ok("页面无未捕获错误、无横向溢出");
   await app.close();
-  app = await launchAuthenticated({ args: [root], env, timeout: 30000 });
+  app = await launchAuthenticated(launchOptions);
   page = await app.firstWindow();
   await page.getByRole("heading", { name: "今天的安排" }).waitFor();
   state = await page.evaluate(() => window.veritas.call("state"));

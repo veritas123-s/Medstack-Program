@@ -1,3 +1,114 @@
+const roomScans = new WeakMap();
+const roomOptionTypes = [
+  "AnswerAuxiliaryCampus",
+  "BuildCode",
+  "ClassroomFloor",
+  "Classroom",
+];
+
+async function roomOptions(auth, base, { type, Area, BuildCode, FloorNo }) {
+  if (!roomOptionTypes.includes(type)) throw Error("教室查询参数无效");
+  const params = { type };
+  for (const [key, value] of Object.entries({ Area, BuildCode, FloorNo }))
+    if (value) params[key] = String(value).slice(0, 100);
+  const result = await auth.request(
+    base,
+    "/api/edu/jfSelectData/getDict",
+    params,
+  );
+  if (!Array.isArray(result?.data)) throw Error("学校未返回有效教室选项");
+  const options = new Map();
+  for (const item of result.data) {
+    if (item?.code != null && item.name != null)
+      options.set(String(item.code), String(item.name));
+  }
+  return [...options].map(([code, name]) => ({ code, name }));
+}
+
+async function roomSchedule(auth, base, { date, area, building, floor, room }) {
+  const result = await auth.request(base, "/api/edu/jfTeachingcalendar/page3", {
+    state: "通过",
+    searchDate: date,
+    area: String(area || ""),
+    buliding: String(building || ""),
+    floor: String(floor || ""),
+    classroomId: String(room),
+  });
+  if (!Array.isArray(result?.data)) throw Error("教室返回格式异常");
+  return {
+    complete: !(Number(result.total) > result.data.length),
+    rows: result.data.map((item) => ({
+      title: String(item?.coursename || ""),
+      start: String(item?.periodbegintime || ""),
+      end: String(item?.periodendtime || ""),
+      teacher: String(item?.teachertitle || item?.teachername || ""),
+      className: String(item?.classname || ""),
+    })),
+  };
+}
+
+async function buildingSchedule(auth, base, params) {
+  const previous = roomScans.get(auth);
+  if (previous) previous.cancelled = true;
+  const generation = auth.generation;
+  const scan = { cancelled: false };
+  const active = () => !scan.cancelled && generation === auth.generation;
+  scan.done = (async () => {
+    await previous?.done.catch(() => {});
+    if (!active()) return null;
+    const { area: Area, building: BuildCode } = params;
+    const floors = await roomOptions(auth, base, {
+      type: "ClassroomFloor",
+      Area,
+      BuildCode,
+    });
+    const rooms = [];
+    let failedFloors = 0;
+    for (const floor of floors) {
+      if (!active()) return null;
+      try {
+        const options = await roomOptions(auth, base, {
+          type: "Classroom",
+          Area,
+          BuildCode,
+          FloorNo: floor.code,
+        });
+        for (const room of options) rooms.push({ ...room, floor });
+      } catch {
+        failedFloors++;
+        if (auth.phase === "attention") break;
+      }
+    }
+    let next = 0;
+    const load = async () => {
+      while (active() && next < rooms.length) {
+        const room = rooms[next++];
+        if (auth.phase === "attention") break;
+        try {
+          Object.assign(
+            room,
+            await roomSchedule(auth, base, {
+              ...params,
+              room: room.code,
+              floor: room.floor.code,
+            }),
+          );
+        } catch {
+          room.complete = false;
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(3, rooms.length) }, load));
+    return active() ? { rooms, failedFloors, fetchedAt: Date.now() } : null;
+  })();
+  roomScans.set(auth, scan);
+  try {
+    return await scan.done;
+  } finally {
+    if (roomScans.get(auth) === scan) roomScans.delete(auth);
+  }
+}
+
 export default async function execute(action, p, context) {
   if (action === "school.exams") return context.exams.sync();
   if (action === "school.exams.open") {
@@ -90,51 +201,20 @@ export default async function execute(action, p, context) {
       content: String(item.TeachingContent || item.Content || ""),
     };
   } else if (action === "school.rooms.options") {
+    return roomOptions(auth, campus.ROOMS, p);
+  } else if (action === "school.rooms.building") {
     if (
-      ![
-        "AnswerAuxiliaryCampus",
-        "BuildCode",
-        "ClassroomFloor",
-        "Classroom",
-      ].includes(p.type)
+      !domain.validDay(p.date) ||
+      ![p.area, p.building].every(
+        (value) =>
+          typeof value === "string" && value.trim() && value.length <= 100,
+      )
     )
-      throw new Error("教室查询参数无效");
-    const params = { type: p.type };
-    for (const key of ["Area", "BuildCode", "FloorNo"])
-      if (p[key]) params[key] = String(p[key]).slice(0, 100);
-    const data = await auth.request(
-      campus.ROOMS,
-      "/api/edu/jfSelectData/getDict",
-      params,
-    );
-    if (!Array.isArray(data?.data))
-      throw new Error("未返回教室选项，请检查学校登录");
-    return data.data.map((x) => ({
-      code: String(x.code),
-      name: String(x.name),
-    }));
+      throw Error("请选择校区、楼栋和日期");
+    return buildingSchedule(auth, campus.ROOMS, p);
   } else if (action === "school.rooms") {
     if (!domain.validDay(p.date) || !p.room)
       throw new Error("请选择日期及教室");
-    const data = await auth.request(
-      campus.ROOMS,
-      "/api/edu/jfTeachingcalendar/page3",
-      {
-        state: "通过",
-        searchDate: p.date,
-        area: String(p.area || ""),
-        buliding: String(p.building || ""),
-        floor: String(p.floor || ""),
-        classroomId: String(p.room),
-      },
-    );
-    if (!Array.isArray(data?.data)) throw new Error("教室返回格式异常");
-    return data.data.map((x) => ({
-      title: String(x.coursename || ""),
-      start: String(x.periodbegintime || ""),
-      end: String(x.periodendtime || ""),
-      teacher: String(x.teachertitle || x.teachername || ""),
-      className: String(x.classname || ""),
-    }));
+    return (await roomSchedule(auth, campus.ROOMS, p)).rows;
   }
 }

@@ -8,9 +8,9 @@ import {
   DoorOpen,
   KeyRound,
 } from "lucide-react";
-import { dayKey } from "../../domain.mjs";
 import { Empty, Modal } from "../../components.jsx";
 import ExamsPanel from "./ExamsPanel.jsx";
+import RoomBoard from "./RoomBoard.jsx";
 function LoginSettings({ state, call, onClose }) {
   const [username, setUsername] = useState(""),
     [password, setPassword] = useState(""),
@@ -249,145 +249,7 @@ export default function Campus({ state, call }) {
           )}
         </Panel>
       )}
-      {tab === "rooms" && <Rooms call={call} />}
+      {tab === "rooms" && <RoomBoard call={call} />}
     </>
-  );
-}
-function Rooms({ call }) {
-  const [opts, setOpts] = useState([[], [], [], []]),
-    [values, setValues] = useState(["", "", "", ""]),
-    [date, setDate] = useState(dayKey()),
-    [rows, setRows] = useState(null),
-    [busy, setBusy] = useState(false);
-  const types = [
-    "AnswerAuxiliaryCampus",
-    "BuildCode",
-    "ClassroomFloor",
-    "Classroom",
-  ];
-  const load = async (index, next = values) => {
-    setBusy(true);
-    try {
-      const result = await call("school.rooms.options", {
-        type: types[index],
-        Area: next[0],
-        BuildCode: next[1],
-        FloorNo: next[2],
-      });
-      setOpts((old) => old.map((o, i) => (i === index ? result : o)));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Panel className="panel">
-      <div className="panel-heading">
-        <h3>寻找一间教室</h3>
-        <button
-          className="button"
-          disabled={busy}
-          onClick={() => {
-            setValues(["", "", "", ""]);
-            setOpts([[], [], [], []]);
-            setRows(null);
-            load(0);
-          }}
-        >
-          读取校区
-        </button>
-      </div>
-      <div className="room-filters">
-        {["校区", "楼栋", "楼层", "教室"].map((label, i) => (
-          <label key={label}>
-            {label}
-            <select
-              disabled={busy || !opts[i].length}
-              value={values[i]}
-              onChange={(e) => {
-                const next = values.map((v, j) =>
-                  j === i ? e.target.value : j > i ? "" : v,
-                );
-                setValues(next);
-                setOpts((old) => old.map((o, j) => (j > i ? [] : o)));
-                setRows(null);
-                if (i < 3 && next[i]) load(i + 1, next);
-              }}
-            >
-              <option value="">请选择</option>
-              {opts[i].map((o) => (
-                <option key={o.code} value={o.code}>
-                  {i === 1
-                    ? `${opts[0].find((campus) => campus.code === values[0])?.name || "校区待确认"} · ${o.name}`
-                    : o.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        ))}
-        <label>
-          日期
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => {
-              setDate(e.target.value);
-              setRows(null);
-            }}
-          />
-        </label>
-        <button
-          className="button primary"
-          disabled={busy || !values[3]}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              setRows(
-                await call("school.rooms", {
-                  date,
-                  area: values[0],
-                  building: values[1],
-                  floor: values[2],
-                  room: values[3],
-                }),
-              );
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          查询占用
-        </button>
-      </div>
-      {rows === null ? (
-        <Empty icon={DoorOpen} title="先选择校区与教室">
-          查询学校返回的教学占用信息。
-        </Empty>
-      ) : rows.length ? (
-        <table>
-          <thead>
-            <tr>
-              <th>时间</th>
-              <th>课程</th>
-              <th>班级</th>
-              <th>教师</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={i}>
-                <td>
-                  {r.start}–{r.end}
-                </td>
-                <td>{r.title}</td>
-                <td>{r.className}</td>
-                <td>{r.teacher}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <Empty title="该日期没有返回占用记录">仍以学校现场安排为准。</Empty>
-      )}
-    </Panel>
   );
 }

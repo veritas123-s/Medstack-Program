@@ -14,6 +14,44 @@ import {
 } from "../src/calendar.mjs";
 import { Workflows } from "../electron/workflows.mjs";
 import { agenda, learningEntries } from "../src/agenda.mjs";
+test("学习通确定截止时间可进入日历，任务去重并遵守删除与估算标记", () => {
+  const state = initialState();
+  const deadline = Date.now() + 86400000;
+  const assignment = {
+    kind: "assignment",
+    id: "work:synthetic",
+    title: "合成截止",
+    deadline,
+    taskId: "cx-synthetic",
+  };
+  state.learning = {
+    items: [
+      assignment,
+      {
+        ...assignment,
+        id: "work:estimate",
+        taskId: "cx-estimate",
+        estimated: true,
+      },
+    ],
+  };
+  assert.deepEqual(
+    calendarEvents(state).map((item) => [item.kind, item.start]),
+    [["assignment", deadline]],
+  );
+  state.tasks.push(
+    taskInput(
+      { title: assignment.title, due: "2026-10-01", quadrant: "plan" },
+      { id: assignment.taskId },
+    ),
+  );
+  assert.deepEqual(
+    calendarEvents(state).map((item) => item.kind),
+    ["task"],
+  );
+  state.tasks[0].deletedAt = Date.now();
+  assert.equal(calendarEvents(state).length, 0);
+});
 const directory = () => fs.mkdtempSync(path.join(os.tmpdir(), "medstack-v21-"));
 const notice = {
   id: "notice:synthetic",
