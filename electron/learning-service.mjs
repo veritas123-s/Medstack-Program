@@ -5,6 +5,7 @@ import path from "node:path";
 import { learningTaskId } from "./workflows.mjs";
 import {
   isLearningURL,
+  assignmentPageURL,
   parseCourses,
   parseLearningHTML,
   parseDeadline,
@@ -62,9 +63,14 @@ export class LearningService {
   status() {
     return {
       ...this.data,
-      items: this.data.items.map((x) => ({
+      items: this.data.items.map(({ assignmentURL, ...x }) => ({
         ...x,
-        ...(x.kind === "assignment" ? { taskId: learningTaskId(x.id) } : {}),
+        ...(x.kind === "assignment"
+          ? {
+              taskId: learningTaskId(x.id),
+              canOpenAssignment: !!assignmentPageURL(assignmentURL, x.id),
+            }
+          : {}),
       })),
       connected: !this.needsLogin && !!this.secrets.data.cookies?.length,
       needsLogin: !!this.needsLogin,
@@ -139,19 +145,27 @@ export class LearningService {
       throw Error("会话过大");
     this.secrets.save({ cookies });
   }
-  async open(kind = "login") {
+  async open(kind = "login", assignmentId) {
+    let url = kind === "notices" ? NOTICES : LOGIN;
+    if (kind === "assignment") {
+      const item = this.data.items.find(
+        (x) => x.kind === "assignment" && x.id === assignmentId,
+      );
+      url = assignmentPageURL(item?.assignmentURL, item?.id);
+      if (!url) throw Error("找不到官方作业入口，请先同步学习通。");
+    }
     this.disconnected = false;
-    const url = kind === "notices" ? NOTICES : LOGIN;
     if (this.window && !this.window.isDestroyed()) {
       this.window.show();
       this.window.focus();
-      if (kind === "notices" || this.needsLogin) await this.window.loadURL(url);
+      if (kind === "assignment" || kind === "notices" || this.needsLogin)
+        await this.window.loadURL(url);
       return;
     }
     const w = (this.window = new this.BrowserWindow({
       width: 1150,
       height: 820,
-      title: "学习通 · 官方登录",
+      title: "学习通 · 官方页面",
       icon: brand.icon,
       autoHideMenuBar: true,
       webPreferences: {
@@ -305,6 +319,7 @@ export class LearningService {
               const u = new URL(x.url),
                 workId = u.searchParams.get("workId");
               if (!/^\d+$/.test(workId || "")) continue;
+              const id = `work:${c.id}:${c.classId}:${workId}`;
               let timing = parseDeadline(x.time);
               if (
                 (!timing.deadline || timing.estimated) &&
@@ -322,7 +337,8 @@ export class LearningService {
                 } catch {}
               }
               collected.push({
-                id: `work:${c.id}:${c.classId}:${workId}`,
+                id,
+                assignmentURL: assignmentPageURL(u.href, id),
                 courseKey: `${c.id}:${c.classId}`,
                 kind: "assignment",
                 title: x.title,

@@ -375,6 +375,23 @@ export default function NotificationsPage({
                       ? " · " + new Date(e.time).toLocaleString("zh-CN")
                       : ""}
                   </p>
+                  {filter !== "deleted" &&
+                    e.kind === "assignment" &&
+                    e.canOpenAssignment && (
+                      <button
+                        className="text-button"
+                        disabled={busy}
+                        onClick={() =>
+                          run("learning.open", {
+                            kind: "assignment",
+                            id: e.sourceId,
+                          })
+                        }
+                      >
+                        <ArrowUpRight size={15} />
+                        {e.done || e.closed ? "查看官方作业" : "前往作答与提交"}
+                      </button>
+                    )}
                 </div>
                 {filter !== "deleted" && (
                   <button

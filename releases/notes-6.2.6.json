@@ -1,0 +1,8 @@
+{
+  "title": "医栈通 V6.2.6",
+  "notes": [
+    "从桌面版学习通作业列表进入官方作答页，沿用学习通会话查看要求、添加附件并提交。"
+  ],
+  "urgent": false,
+  "platforms": ["windows", "macos_x64", "macos_arm64"]
+}

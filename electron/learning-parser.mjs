@@ -12,6 +12,25 @@ export function isLearningURL(value) {
     return false;
   }
 }
+export function assignmentPageURL(value, id) {
+  if (!isLearningURL(value)) return "";
+  const url = new URL(value);
+  const match = /^work:(\d+):(\d+):(\d+)$/.exec(id);
+  if (
+    !match ||
+    !/^mooc1(?:-\d+)?\.chaoxing\.com$/.test(url.hostname) ||
+    !/^\/(?:mooc-ans\/)?mooc2\/work\/task\/?$/.test(url.pathname) ||
+    url.searchParams.getAll("workId").length !== 1 ||
+    url.searchParams.get("workId") !== match[3]
+  )
+    return "";
+  for (const [key, expected] of [["courseId", match[1]], ["classId", match[2]]]) {
+    const values = url.searchParams.getAll(key);
+    if (values.length && (values.length !== 1 || values[0] !== expected))
+      return "";
+  }
+  return url.href;
+}
 export function parseCourses(data, { includeArchived = false } = {}) {
   if (data?.result !== 1 || !Array.isArray(data.channelList))
     throw Error("学习通登录已失效或课程列表格式改变，请重新扫码");

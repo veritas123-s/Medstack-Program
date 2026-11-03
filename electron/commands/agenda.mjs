@@ -3,7 +3,7 @@ export default async function execute(
   p,
   { learning, workflows, store, bridge, broadcast },
 ) {
-  if (action === "learning.open") await learning.open(p.kind);
+  if (action === "learning.open") await learning.open(p.kind, p.id);
   if (action === "learning.sync") await learning.sync();
   if (action === "learning.logout") await learning.logout();
   if (action === "workflow.configure") workflows.configure(p);

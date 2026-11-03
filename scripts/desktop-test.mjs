@@ -20,11 +20,12 @@ fs.writeFileSync(
     version: 1,
     items: [
       {
-        id: "work:synthetic-calendar",
+        id: "work:1:2:3",
         kind: "assignment",
         title: "合成学习通截止",
         deadline: assignmentDeadline,
         course: "合成课程",
+        assignmentURL: "https://mooc1.chaoxing.com/mooc2/work/task?courseId=1&classId=2&workId=3&enc=synthetic",
       },
     ],
   }),
@@ -279,6 +280,39 @@ try {
     .getByRole("heading", { name: "合成学习通截止", exact: true })
     .waitFor();
   ok("学习通明确截止自动进入日历，无需先加入任务");
+  await app.evaluate(({ session }) => {
+    const learning = session.fromPartition("medstack-learning");
+    learning.protocol.handle("https", async (request) => {
+      const { pathname } = new URL(request.url);
+      const html = (body) => new Response(body, {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+      if (pathname === "/mooc2/work/task" && request.method === "GET")
+        return html('<h1>合成作答页</h1><form method="post" action="/fixture-submit" enctype="multipart/form-data"><label>附件<input type="file" name="file"></label><button>提交合成作业</button></form>');
+      if (pathname === "/fixture-submit" && request.method === "POST") {
+        const file = (await request.formData()).get("file");
+        if (file?.name === "fixture.txt" && await file.text() === "fixture")
+          return html("<h1>合成提交回执</h1>");
+      }
+      return new Response("", { status: 404 });
+    });
+  });
+  await page.getByRole("button", { name: "超星学习通", exact: true }).click();
+  const officialWindow = app.waitForEvent("window");
+  await page.getByRole("button", { name: "前往作答与提交", exact: true }).click();
+  const work = await officialWindow;
+  await work.getByRole("heading", { name: "合成作答页" }).waitFor();
+  assert.match(work.url(), /workId=3/);
+  await work.getByLabel("附件").setInputFiles({
+    name: "fixture.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("fixture"),
+  });
+  await work.getByRole("button", { name: "提交合成作业" }).click();
+  await work.getByRole("heading", { name: "合成提交回执" }).waitFor();
+  await work.close();
+  ok("官方作业入口合成测试：手动选附件、提交和确认回执");
+  await page.getByRole("button", { name: "日程日历", exact: true }).click();
   await app.evaluate(({ session }) => {
     session.fromPartition("veritas-school").fetch = async () =>
       new Response("unavailable", { status: 500 });

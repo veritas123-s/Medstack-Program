@@ -15,9 +15,41 @@ import {
   parseDeadline,
   parseNotices,
   isLearningURL,
+  assignmentPageURL,
 } from "../electron/learning-parser.mjs";
+import { LearningService } from "../electron/learning-service.mjs";
 import { Workflows } from "../electron/workflows.mjs";
 import { Store } from "../electron/store.mjs";
+test("作业入口沿用学习通会话，只打开同步得到的对应官方作业", async () => {
+  const id = "work:10:20:30";
+  const url = "https://mooc1.chaoxing.com/mooc-ans/mooc2/work/task?courseId=10&classId=20&workId=30&enc=fixture";
+  assert.equal(assignmentPageURL(url, id), url);
+  for (const invalid of [
+    url.replace("workId=30", "workId=31"),
+    url.replace("classId=20", "classId=21"),
+    url.replace("/work/task", "/work/submit"),
+    url.replace("mooc1.chaoxing.com", "mooc1.chaoxing.com.example.org"),
+    url + "&workId=31",
+  ]) assert.equal(assignmentPageURL(invalid, id), "");
+
+  const loaded = [];
+  const service = Object.assign(Object.create(LearningService.prototype), {
+    secrets: { data: {} },
+    data: { items: [{ id, kind: "assignment", assignmentURL: url }] },
+    window: {
+      isDestroyed: () => false,
+      show() {},
+      focus() {},
+      async loadURL(target) { loaded.push(target); },
+    },
+  });
+  const [item] = service.status().items;
+  assert.equal(item.canOpenAssignment, true);
+  assert.equal(Object.hasOwn(item, "assignmentURL"), false);
+  await assert.rejects(service.open("assignment", "work:10:20:31"), /官方作业入口/);
+  await service.open("assignment", id);
+  assert.deepEqual(loaded, [url]);
+});
 test("可选择归档课程且不读取教师班级，非法截止日期不溢出", () => {
   const c = (id, isretire, role = 3) => ({
     content: {
