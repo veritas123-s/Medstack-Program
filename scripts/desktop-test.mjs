@@ -300,6 +300,7 @@ try {
     .getByText("合成 101", { exact: true })
     .waitFor();
   const roomCard = page.locator(".room-card").filter({ hasText: "合成 101" });
+  await roomCard.locator("summary").getByText("10:00", { exact: true }).waitFor();
   await roomCard.locator("summary").click();
   await roomCard.getByText("当天 09:00 之后的占用").waitFor();
   assert.deepEqual(await roomCard.locator(".room-day ul").first().locator("li strong").allTextContents(),
@@ -307,6 +308,7 @@ try {
   await page.getByLabel("查看时间（北京时间）").fill("15:00");
   await roomCard.getByText("今天之后无教务占用记录").waitFor();
   ok("展开教室按所选时间展示后续占用，按开始时间排序");
+  await page.screenshot({ path: path.join(output, "room-board-v630-expanded.png") });
   ok("校园响应合成测试：成绩、楼栋状态、用途与时段边界");
   await page.getByLabel("查看时间（北京时间）").fill("08:30");
   await page.screenshot({ path: path.join(output, "room-board-v625.png") });

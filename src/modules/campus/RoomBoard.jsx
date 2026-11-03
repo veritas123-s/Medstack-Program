@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronDown, DoorOpen, RefreshCw } from "lucide-react";
+import { ChevronDown, Clock3, DoorOpen, RefreshCw } from "lucide-react";
 import { beijingDay } from "../../briefing.mjs";
 import Panel from "../../shared/Panel.jsx";
 import { Empty } from "../../components.jsx";
@@ -22,6 +22,7 @@ const progressLabels = {
 
 function RoomCard({ room, at }) {
   const other = (room.rows || []).filter((row) => !room.upcoming.includes(row));
+  const next = room.upcoming[0];
   return (
     <details className="room-card" data-status={room.state}>
       <summary>
@@ -43,8 +44,14 @@ function RoomCard({ room, at }) {
         ) : (
           <span className="room-use">
             {room.state === "free"
-              ? "该时段无教务占用记录"
+              ? "当前时段无占用记录"
               : "该时段占用未确认"}
+          </span>
+        )}
+        {next && (
+          <span className="room-next">
+            <Clock3 size={13} aria-hidden />
+            <span>下一场 <time>{next.start}</time></span>
           </span>
         )}
       </summary>
@@ -61,11 +68,13 @@ function RoomCard({ room, at }) {
               <ul>
                 {rows.map((row, i) => (
                   <li key={i}>
-                    <strong>{row.title || "用途未注明"}</strong>
-                    <small>
+                    <span className="room-slot-time">
                       {row.start || "开始时间待确认"}–{row.end || "结束时间待确认"}
-                      {row.teacher ? ` · ${row.teacher}` : ""}
-                    </small>
+                    </span>
+                    <span>
+                      <strong>{row.title || "用途未注明"}</strong>
+                      {row.teacher && <small>{row.teacher}</small>}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -169,8 +178,11 @@ export default function RoomBoard({ call }) {
   }
   return (
     <Panel className="panel room-board">
-      <div className="panel-heading">
-        <h3>楼栋教室状态</h3>
+      <div className="panel-heading room-board-heading">
+        <div className="room-board-title">
+          <span className="room-board-icon"><DoorOpen size={18} aria-hidden /></span>
+          <h3>楼栋教室状态</h3>
+        </div>
         <button
           className="button small"
           disabled={!!loading}
@@ -274,7 +286,7 @@ export default function RoomBoard({ call }) {
               </span>
             ))}
           </div>
-          <p className="hint">
+          <p className="hint room-source">
             {clock.format(result.fetchedAt)} 更新 ·
             按学校教学安排判断，临时占用以现场为准。
           </p>
@@ -284,7 +296,7 @@ export default function RoomBoard({ call }) {
           {!floors.size && <Empty title="学校未返回该楼栋的教室清单" />}
           {[...floors].map(([id, floor]) => (
             <section className="room-floor" key={id}>
-              <h4>{floor.name}</h4>
+              <h4>{floor.name}<small>{floor.rooms.length} 间</small></h4>
               <div className="room-grid">
                 {floor.rooms.map((room) => (
                   <RoomCard key={room.code} room={room} at={at} />
