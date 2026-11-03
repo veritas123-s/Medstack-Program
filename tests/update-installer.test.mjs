@@ -28,8 +28,10 @@ test("新版只清理更新目录中的已知旧版下载，保留新版、其�
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.writeFileSync(target, "synthetic");
     }
+    const profileAlias = path.join(directory, "profile-alias");
+    fs.symlinkSync(directory, profileAlias, process.platform === "win32" ? "junction" : "dir");
     const removed = [];
-    await trashOldUpdateDownloads(directory, "6.2.4", async (file) => {
+    await trashOldUpdateDownloads(profileAlias, "6.2.4", async (file) => {
       removed.push(path.basename(file));
       fs.unlinkSync(file);
     });

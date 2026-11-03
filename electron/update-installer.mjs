@@ -6,9 +6,9 @@ import { validateRelease, newerVersion } from "../src/releases.mjs";
 import { publicResponse, abortable } from "./public-fetch.mjs";
 
 export async function trashOldUpdateDownloads(directory, version, trash) {
-  const root = path.resolve(directory, "updates");
-  let entries;
+  let root, entries;
   try {
+    root = path.join(await fs.promises.realpath(directory), "updates");
     if (path.relative(root, await fs.promises.realpath(root))) return;
     entries = await fs.promises.readdir(root, { withFileTypes: true });
   } catch {
