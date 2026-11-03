@@ -13,6 +13,12 @@ const clock = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23",
 });
 const labels = { free: "空闲", busy: "占用", unknown: "待确认" };
+const progressLabels = {
+  queued: "等待上一轮查询结束…",
+  directory: "读取楼层目录…",
+  floors: "已查询楼层",
+  rooms: "已查询教室",
+};
 
 function RoomCard({ room }) {
   return (
@@ -78,6 +84,7 @@ export default function RoomBoard({ call }) {
   const [result, setResult] = useState(null);
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState("");
+  const [progress, setProgress] = useState(null);
   const [error, setError] = useState("");
   useEffect(() => {
     const timer = setInterval(() => setNow(clock.format(new Date())), 15000);
@@ -85,6 +92,7 @@ export default function RoomBoard({ call }) {
   }, []);
   useEffect(() => {
     let active = true;
+    let unsubscribe;
     const read = async (action, params, accept, message) => {
       setLoading(message);
       try {
@@ -97,6 +105,7 @@ export default function RoomBoard({ call }) {
       }
     };
     setError("");
+    setProgress(null);
     if (!area) {
       read(
         "school.rooms.options",
@@ -112,9 +121,13 @@ export default function RoomBoard({ call }) {
         "读取楼栋…",
       );
     } else if (date) {
+      const requestId = crypto.randomUUID();
+      unsubscribe = window.veritas?.onRoomProgress((update) => {
+        if (active && update.requestId === requestId) setProgress(update);
+      });
       read(
         "school.rooms.building",
-        { area, building, date },
+        { area, building, date, requestId },
         setResult,
         "读取楼栋教室安排…",
       );
@@ -123,9 +136,15 @@ export default function RoomBoard({ call }) {
     }
     return () => {
       active = false;
+      unsubscribe?.();
     };
   }, [area, building, date, revision]);
 
+  const stage = progressLabels[progress?.phase] || loading;
+  const hasCount = progress?.total > 0;
+  const progressText = hasCount
+    ? `${stage} ${progress.completed} / ${progress.total}`
+    : stage;
   const at = time || now;
   const floors = new Map();
   const counts = { free: 0, busy: 0, unknown: 0 };
@@ -222,7 +241,16 @@ export default function RoomBoard({ call }) {
           回到当前时间
         </button>
       )}
-      {loading && <p role="status">{loading}</p>}
+      {loading && (
+        <div className="room-progress">
+          <small role="status">{progressText}</small>
+          <progress
+            aria-label={stage}
+            max={hasCount ? progress.total : 1}
+            value={hasCount ? progress.completed : undefined}
+          />
+        </div>
+      )}
       {error && (
         <p className="error" role="alert">
           {error}

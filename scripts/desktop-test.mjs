@@ -200,6 +200,8 @@ try {
         );
       if (url.includes("getDict")) {
         const type = new URL(url).searchParams.get("type");
+        if (type === "Classroom")
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         return new Response(
           JSON.stringify({
             data:
@@ -214,8 +216,10 @@ try {
         );
       }
       const room = new URL(url).searchParams.get("classroomId");
-      if (room === "unknown")
+      if (room === "unknown") {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
         return new Response("unavailable", { status: 503 });
+      }
       if (room === "free") return Response.json({ data: [] });
       return new Response(
         JSON.stringify({
@@ -252,6 +256,12 @@ try {
       .waitFor({ state: "attached" });
     await roomSelects.nth(i).selectOption("test");
   }
+  const floorProgress = page.getByRole("progressbar", { name: "已查询楼层" });
+  await floorProgress.waitFor();
+  assert.equal(await floorProgress.getAttribute("max"), "1");
+  const roomProgress = page.getByRole("progressbar", { name: "已查询教室" });
+  await roomProgress.and(page.locator('progress[value="2"]')).waitFor();
+  assert.equal(await roomProgress.getAttribute("max"), "3");
   await page.getByLabel("查看时间（北京时间）").fill("08:30");
   await page
     .locator('.room-card[data-status="busy"] summary')
@@ -265,6 +275,8 @@ try {
     .locator('.room-card[data-status="unknown"]')
     .getByText("合成 103", { exact: true })
     .waitFor();
+  await roomProgress.waitFor({ state: "hidden" });
+  ok("楼层和教室显示实际查询进度，部分请求失败仍结束进度");
   await page.getByLabel("查看时间（北京时间）").fill("09:00");
   await page
     .locator('.room-card[data-status="free"]')

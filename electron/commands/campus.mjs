@@ -47,15 +47,20 @@ async function roomSchedule(auth, base, { date, area, building, floor, room }) {
   };
 }
 
-async function buildingSchedule(auth, base, params) {
+async function buildingSchedule(auth, base, params, report) {
   const previous = roomScans.get(auth);
   if (previous) previous.cancelled = true;
   const generation = auth.generation;
   const scan = { cancelled: false };
   const active = () => !scan.cancelled && generation === auth.generation;
+  const progress = (phase, completed, total) => {
+    if (active()) report({ phase, completed, total });
+  };
   scan.done = (async () => {
+    if (previous) progress("queued");
     await previous?.done.catch(() => {});
     if (!active()) return null;
+    progress("directory");
     const { area: Area, building: BuildCode } = params;
     const floors = await roomOptions(auth, base, {
       type: "ClassroomFloor",
@@ -63,7 +68,8 @@ async function buildingSchedule(auth, base, params) {
       BuildCode,
     });
     const rooms = [];
-    let failedFloors = 0;
+    let failedFloors = 0, completedFloors = 0;
+    progress("floors", 0, floors.length);
     for (const floor of floors) {
       if (!active()) return null;
       try {
@@ -77,9 +83,12 @@ async function buildingSchedule(auth, base, params) {
       } catch {
         failedFloors++;
         if (auth.phase === "attention") break;
+      } finally {
+        progress("floors", ++completedFloors, floors.length);
       }
     }
-    let next = 0;
+    let next = 0, completedRooms = 0;
+    progress("rooms", 0, rooms.length);
     const load = async () => {
       while (active() && next < rooms.length) {
         const room = rooms[next++];
@@ -95,6 +104,8 @@ async function buildingSchedule(auth, base, params) {
           );
         } catch {
           room.complete = false;
+        } finally {
+          progress("rooms", ++completedRooms, rooms.length);
         }
       }
     };
@@ -211,7 +222,14 @@ export default async function execute(action, p, context) {
       )
     )
       throw Error("请选择校区、楼栋和日期");
-    return buildingSchedule(auth, campus.ROOMS, p);
+    return buildingSchedule(auth, campus.ROOMS, p, (progress) => {
+      if (typeof p.requestId === "string" && p.requestId.length <= 64 &&
+          win && !win.isDestroyed() && !win.webContents.isDestroyed())
+        win.webContents.send("veritas:room-progress", {
+          ...progress,
+          requestId: p.requestId,
+        });
+    });
   } else if (action === "school.rooms") {
     if (!domain.validDay(p.date) || !p.room)
       throw new Error("请选择日期及教室");
