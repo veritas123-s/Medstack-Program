@@ -103,6 +103,10 @@ class MobileWorkspaceTest {
         navigate("日程")
         compose.onNodeWithText("合成日程").assertIsDisplayed()
         compose.onNodeWithText("选日期").assertIsDisplayed()
+        compose.onNodeWithText("添加日程").performClick()
+        compose.onNodeWithText("日程名称").performTextInput("合成手机新增日程")
+        compose.onNodeWithText("保存").performClick()
+        compose.runOnIdle { assertTrue(repository.state.schedule.any { it.title == "合成手机新增日程" }) }
         screenshot("schedule")
         navigate("专注")
         compose.onNodeWithText("自定义分钟（1–180）").performTextInput("37")
@@ -111,7 +115,8 @@ class MobileWorkspaceTest {
         Thread.sleep(1300)
         compose.onNodeWithText("结束并保存").performClick()
         compose.runOnIdle { assertEquals(1, repository.state.document!!.getJSONArray("logs").length()) }
-        compose.onNodeWithText("手机专注").performScrollTo().assertIsDisplayed()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("手机专注"))
+        compose.onNodeWithText("手机专注").assertIsDisplayed()
         screenshot("focus")
         navigate("更多")
         compose.onNodeWithText("校园快讯").assertDoesNotExist()

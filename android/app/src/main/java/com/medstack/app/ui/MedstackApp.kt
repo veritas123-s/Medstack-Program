@@ -81,6 +81,7 @@ import com.medstack.app.data.MobileTask
 import com.medstack.app.data.ScheduleItem
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.LocalDateTime
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -143,7 +144,7 @@ fun MedstackApp(ui: MedstackUiState, repository: MedstackRepository) {
             when (page) {
                 MobilePage.Today -> TodayScreen(ui, repository)
                 MobilePage.Tasks -> TasksScreen(ui, repository)
-                MobilePage.Schedule -> ScheduleScreen(ui)
+                MobilePage.Schedule -> ScheduleScreen(ui, repository)
                 MobilePage.Focus -> FocusScreen(ui, repository)
                 MobilePage.More -> MoreScreen { page = it }
                 MobilePage.Assistant -> AssistantScreen(repository)
@@ -169,6 +170,7 @@ private fun AuthScreen(ui: MedstackUiState, repository: MedstackRepository) {
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Image(painterResource(R.drawable.medstack_icon),contentDescription="Medstack",modifier=Modifier.size(48.dp))
                 Text("医栈通 Medstack", style = MaterialTheme.typography.headlineLarge)
+                Text("医栈事，一站通", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (ui.needsVerification) {
                     Text(ui.pendingEmail, fontWeight = FontWeight.SemiBold)
                     OutlinedTextField(code, { code = it.take(10) }, label = { Text("邮箱验证码") }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
@@ -325,11 +327,13 @@ private fun TaskDialog(task: MobileTask?, onDismiss: () -> Unit, onSave: (String
 }
 
 @Composable
-private fun ScheduleScreen(ui: MedstackUiState) {
+private fun ScheduleScreen(ui: MedstackUiState, repository: MedstackRepository) {
     val today = LocalDate.now(ZoneId.of("Asia/Shanghai"))
     val context = LocalContext.current
     var dateKey by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf("all") }
+    var adding by rememberSaveable { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<ScheduleItem?>(null) }
     val day = dateKey.ifBlank { today.toString() }
     val items = (ui.schedule + ui.tasks.filter { !it.completed && it.due.isNotBlank() }.map { task ->
         val at = task.due + task.dueTime.takeIf(String::isNotBlank)?.let { "T$it" }.orEmpty()
@@ -353,13 +357,59 @@ private fun ScheduleScreen(ui: MedstackUiState) {
             }
             ChoiceChips(listOf("all" to "全部", "课程" to "课程", "考试" to "考试", "任务" to "任务", "日程" to "日程"), filter) { filter = it }
         }
-        items(items) { item -> ScheduleCard(item.title, item.start, item.end, item.location, item.kind) }
+        item { OutlinedButton({ adding = true }) { Text("添加日程") } }
+        items(items) { item ->
+            ScheduleCard(item.title, item.start, item.end, item.location, item.kind,
+                if (item.kind == "日程" && item.id.isNotBlank()) ({ editing = item }) else null)
+        }
         if (items.isEmpty()) item { EmptyCard("暂无安排") }
+    }
+    if (adding || editing != null) {
+        val close = { adding = false; editing = null }
+        EventDialog(editing, day, repository, close)
     }
 }
 
 @Composable
-private fun ScheduleCard(title: String, start: String, end: String, location: String, kind: String) {
+private fun EventDialog(event: ScheduleItem?, day: String, repository: MedstackRepository, close: () -> Unit) {
+    var title by rememberSaveable(event?.id) { mutableStateOf(event?.title.orEmpty()) }
+    var start by rememberSaveable(event?.id) { mutableStateOf(event?.start?.take(16)?.replace('T', ' ') ?: "$day 09:00") }
+    var end by rememberSaveable(event?.id) { mutableStateOf(event?.end?.take(16)?.replace('T', ' ') ?: "$day 10:00") }
+    var location by rememberSaveable(event?.id) { mutableStateOf(event?.location.orEmpty()) }
+    var notes by rememberSaveable(event?.id) { mutableStateOf(event?.notes.orEmpty()) }
+    val startIso = start.replace(' ', 'T')
+    val endIso = end.replace(' ', 'T')
+    val begin = runCatching { LocalDateTime.parse(startIso) }.getOrNull()
+    val finish = runCatching { LocalDateTime.parse(endIso) }.getOrNull()
+    val valid = title.isNotBlank() && start.length == 16 && end.length == 16 &&
+        begin != null && finish != null && finish > begin && finish <= begin.plusDays(366) &&
+        begin.year in 2000..2099 && finish.year in 2000..2099 &&
+        (event?.allDay != true || (begin.toLocalTime() == LocalTime.MIDNIGHT && finish.toLocalTime() == LocalTime.MIDNIGHT))
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text(if (event == null) "添加日程" else "编辑日程") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(title, { title = it.take(240) }, label = { Text("日程名称") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(start, { start = it.take(16) }, label = { Text("开始 YYYY-MM-DD HH:MM") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(end, { end = it.take(16) }, label = { Text("结束 YYYY-MM-DD HH:MM") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(location, { location = it.take(200) }, label = { Text("地点") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(notes, { notes = it.take(5000) }, label = { Text("备注") }, modifier = Modifier.fillMaxWidth())
+                if (event != null) TextButton({ repository.deleteEvent(event.id); close() }) {
+                    Text("删除日程", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            Button({ repository.saveEvent(event?.id.orEmpty(), title, startIso, endIso, location, notes, event?.allDay == true); close() },
+                enabled = valid) { Text("保存") }
+        },
+        dismissButton = { TextButton(close) { Text("取消") } },
+    )
+}
+
+@Composable
+private fun ScheduleCard(title: String, start: String, end: String, location: String, kind: String, edit: (() -> Unit)? = null) {
     val startDay = start.take(10)
     val endDay = end.take(10)
     val startClock = start.substringAfter('T', "").take(5)
@@ -375,6 +425,7 @@ private fun ScheduleCard(title: String, start: String, end: String, location: St
             Text(title, style = MaterialTheme.typography.titleMedium)
             if (timing.isNotBlank()) Text(timing, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (location.isNotBlank()) Text(location, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (edit != null) TextButton(edit) { Text("编辑日程") }
         }
     }
 }
@@ -393,8 +444,11 @@ private fun FocusScreen(ui: MedstackUiState, repository: MedstackRepository) {
         (0 until (entries?.length() ?: 0)).mapNotNull { entries?.optJSONObject(it) }
             .filter { it.isNull("deletedAt") }.sortedByDescending { it.optLong("startedAt") }
     }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val dateFormat = remember { DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.of("Asia/Shanghai")) }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      item {
+       Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(String.format("%02d:%02d", remaining / 60, remaining % 60), style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary)
         if (ui.focusStartedAt == null) {
             ChoiceChips(listOf(15, 25, 45, 60, 90).map { it.toString() to "$it 分" }, minutes.toString()) {
@@ -411,9 +465,10 @@ private fun FocusScreen(ui: MedstackUiState, repository: MedstackRepository) {
             Text("专注记录", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
             TextButton({ addingLog = true }, enabled = ui.focusStartedAt == null) { Text("补记") }
         }
-        if (records.isEmpty()) EmptyCard("暂无专注记录")
-        val dateFormat = remember { DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.of("Asia/Shanghai")) }
-        records.take(30).forEach { record ->
+       }
+      }
+        if (records.isEmpty()) item { EmptyCard("暂无专注记录") }
+        items(records) { record ->
             val seconds = record.optLong("durationMs") / 1000
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.weight(1f)) {

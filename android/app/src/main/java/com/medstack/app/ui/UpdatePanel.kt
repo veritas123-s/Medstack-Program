@@ -12,15 +12,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun UpdateBanner(status:UpdateStatus,onDismiss:()->Unit) {
     val notice=status.release?:return
     if(!status.available||status.dismissed)return
     val uri=LocalUriHandler.current
-    Card(Modifier.fillMaxWidth().padding(horizontal=18.dp,vertical=8.dp)){
-        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-            Text((if(notice.urgent)"重要更新 · " else "")+notice.title,style=MaterialTheme.typography.titleMedium)
-            Row {TextButton({uri.openUri(notice.url)}){Text("下载 V${notice.version}")};TextButton(onDismiss){Text("本版不再提醒")}}
+    Card(Modifier.fillMaxWidth().padding(horizontal=18.dp,vertical=4.dp)){
+        Column(Modifier.padding(horizontal=12.dp,vertical=6.dp)){
+            Text((if(notice.urgent)"重要更新 · " else "")+notice.title,style=MaterialTheme.typography.labelLarge)
+            FlowRow {TextButton({uri.openUri(notice.url)}){Text("下载 V${notice.version}")};TextButton(onDismiss){Text("稍后")}}
         }
     }
 }

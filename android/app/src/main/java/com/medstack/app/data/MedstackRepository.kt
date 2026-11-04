@@ -4,6 +4,7 @@ import android.content.Context
 import com.medstack.app.security.SecureStore
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.LocalDateTime
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +33,9 @@ data class ScheduleItem(
     val end: String,
     val location: String,
     val kind: String,
+    val id: String = "",
+    val notes: String = "",
+    val allDay: Boolean = false,
 )
 
 data class MedstackUiState(
@@ -395,6 +399,48 @@ class MedstackRepository(context: Context, private val syncTransport: MobileSync
 
     fun restoreTask(id: String) = mutateTask(id) { task -> task.put("deletedAt", JSONObject.NULL) }
 
+    fun saveEvent(id: String, title: String, start: String, end: String, location: String, notes: String, allDay: Boolean) {
+        if (!state.authenticated) return
+        val begin = runCatching { LocalDateTime.parse(start) }.getOrNull()
+        val finish = runCatching { LocalDateTime.parse(end) }.getOrNull()
+        if (title.isBlank() || begin == null || finish == null || finish <= begin ||
+            start.length != 16 || end.length != 16 || begin.year !in 2000..2099 ||
+            finish.year !in 2000..2099 || finish > begin.plusDays(366) ||
+            (allDay && (begin.toLocalTime() != LocalTime.MIDNIGHT || finish.toLocalTime() != LocalTime.MIDNIGHT))) {
+            emit(state.copy(message = "请核对标题和起止时间"))
+            return
+        }
+        val document = JSONObject((state.document ?: defaultDocument).toString())
+        val events = document.getJSONArray("events")
+        val event = if (id.isBlank()) {
+            JSONObject().put("id", UUID.randomUUID().toString())
+                .put("calendarUid", "").put("createdAt", System.currentTimeMillis())
+                .put("deletedAt", JSONObject.NULL).also { events.put(it) }
+        } else editableEvent(events, id) ?: return
+        event.put("title", title.trim().take(240)).put("start", start).put("end", end)
+            .put("location", location.trim().take(200)).put("notes", notes.trim().take(5000))
+            .put("allDay", allDay)
+        updateAndPush(document)
+    }
+
+    fun deleteEvent(id: String) {
+        if (!state.authenticated) return
+        val document = state.document?.let { JSONObject(it.toString()) } ?: return
+        val event = editableEvent(document.getJSONArray("events"), id) ?: return
+        event.put("deletedAt", System.currentTimeMillis())
+        updateAndPush(document)
+    }
+
+    private fun editableEvent(events: JSONArray, id: String): JSONObject? {
+        if (id.isBlank() || id.startsWith("school-exam:")) return null
+        for (index in 0 until events.length()) {
+            val event = events.optJSONObject(index) ?: continue
+            if (event.optString("id") == id && event.isNull("deletedAt") &&
+                !event.optString("calendarUid").startsWith("school-exam:")) return event
+        }
+        return null
+    }
+
     private fun mutateTask(id: String, action: (JSONObject) -> Unit) {
         if (!state.authenticated) return
         val document = state.document?.let { JSONObject(it.toString()) } ?: return
@@ -522,7 +568,9 @@ class MedstackRepository(context: Context, private val syncTransport: MobileSync
                 val kind = if (event.optString("calendarUid").startsWith("school-exam:") ||
                     event.optString("id").startsWith("school-exam:") ||
                     event.optString("title").startsWith("考试 · ")) "考试" else "日程"
-                add(ScheduleItem(event.optString("title"), event.optString("start"), event.optString("end"), event.optString("location"), kind))
+                add(ScheduleItem(event.optString("title"), event.optString("start"), event.optString("end"),
+                    event.optString("location"), kind, event.optString("id"), event.optString("notes"),
+                    event.optBoolean("allDay")))
             }
         }.sortedBy { it.start }
         return base.copy(tasks = tasks, deletedTasks = deleted, schedule = schedule)
