@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { RELEASE_PLATFORMS, releaseFilename, validateRelease } from "../src/releases.mjs";
+import { publishVerifiedDraft } from "./release-draft.mjs";
 
 const { GITHUB_REPOSITORY: repo, GITHUB_SHA: sha } = process.env;
 assert.equal(repo, "veritas123-s/Medstack-Program");
@@ -12,7 +13,32 @@ const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 const gh = (...args) => execFileSync("gh", args, {
   encoding: "utf8", maxBuffer: 32 * 1024 * 1024,
 });
-const api = (route) => JSON.parse(gh("api", `repos/${repo}/${route}`));
+const api = (route, method = "GET", body) => JSON.parse(
+  execFileSync("gh", [
+    "api", `repos/${repo}/${route}`, "--method", method,
+    ...(body ? ["--input", "-"] : []),
+  ], { encoding: "utf8", maxBuffer: 32 * 1024 * 1024, input: body && JSON.stringify(body) }),
+);
+
+async function upload(release, asset) {
+  const url = new URL(release.upload_url.split("{")[0]);
+  assert.equal(url.origin, "https://uploads.github.com");
+  assert.equal(url.pathname, `/repos/${repo}/releases/${release.id}/assets`);
+  url.searchParams.set("name", asset.name);
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.GH_TOKEN}`,
+      Accept: "application/vnd.github+json",
+      "Content-Type": "application/octet-stream",
+    },
+    body: fs.readFileSync(asset.file),
+    redirect: "error",
+    signal: AbortSignal.timeout(300000),
+  });
+  if (!response.ok) throw Error(`GitHub upload failed (${response.status}): ${asset.name}`);
+  return response.json();
+}
 const { version } = read("package.json");
 const notes = read(`releases/notes-${version}.json`);
 assert.deepEqual([...notes.platforms].sort(), [...RELEASE_PLATFORMS].sort());
@@ -82,27 +108,7 @@ const catalog = validateRelease({
 });
 
 assert.equal(api("git/ref/heads/main").object.sha, sha, "Main moved after build");
-const releases = () => api("releases?per_page=100").find((release) => release.tag_name === tag);
-if (!releases())
-  gh("release", "create", tag, "--repo", repo, "--draft", "--target", sha,
-    "--title", catalog.title, "--notes", catalog.notes.map((line) => "- " + line).join("\n"));
-let release = releases();
-if (release.draft) assert.equal(release.target_commitish, sha);
-for (const asset of assets) {
-  if (!release.assets.some((item) => item.name === asset.name)) {
-    assert.equal(release.draft, true, "Published release assets are immutable");
-    gh("release", "upload", tag, asset.file, "--repo", repo);
-  }
-}
-release = releases();
-for (const asset of assets) {
-  const uploaded = release.assets.find((item) => item.name === asset.name);
-  assert.equal(uploaded?.size, asset.size);
-  assert.equal(uploaded?.digest, `sha256:${asset.sha256}`);
-}
-if (release.draft) gh("release", "edit", tag, "--repo", repo, "--draft=false", "--latest");
-release = releases();
-assert.equal(release.draft, false);
+const release = await publishVerifiedDraft({ api, upload, tag, sha, catalog, assets });
 catalog.publishedAt = release.published_at;
 fs.writeFileSync("release-announcement.json", JSON.stringify(validateRelease(catalog), null, 2) + "\n");
 console.log(release.html_url);
