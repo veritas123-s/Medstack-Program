@@ -1,9 +1,19 @@
 import WorkflowSettings from "./WorkflowSettings.jsx";
 import UpdateCenter from "./UpdateCenter.jsx";
+import associationLogo from "../../../assets/association-logo.jpg";
 import React, { useState } from "react";
 import {
-  ArrowUpRight, Bell, CircleHelp, Database, Download, FolderOpen,
-  Info, Palette, RefreshCw, Upload, UserRound,
+  ArrowUpRight,
+  Bell,
+  CircleHelp,
+  Database,
+  Download,
+  FolderOpen,
+  Info,
+  Palette,
+  RefreshCw,
+  Upload,
+  UserRound,
 } from "lucide-react";
 import { APP_LABEL } from "../../version.mjs";
 import Panel from "../../shared/Panel.jsx";
@@ -74,7 +84,8 @@ export default function SettingsPage({
           <div hidden={tab !== "focus"}>
             <Panel className="panel" title="专注与提醒">
               <h2>专注与提醒</h2>
-              <form className="settings-focus-form"
+              <form
+                className="settings-focus-form"
                 onSubmit={async (e) => {
                   e.preventDefault();
                   setSaving(true);
@@ -127,13 +138,17 @@ export default function SettingsPage({
                   </label>
                 ))}
                 <div className="settings-save">
-                  <button className="button primary" disabled={saving}>保存设置</button>
+                  <button className="button primary" disabled={saving}>
+                    保存设置
+                  </button>
                 </div>
               </form>
             </Panel>
             <WorkflowSettings state={state} call={call} />
             <div className="settings-actions">
-              <SettingAction onClick={() => setPage("briefing")}>早晚报与推送</SettingAction>
+              <SettingAction onClick={() => setPage("briefing")}>
+                早晚报与推送
+              </SettingAction>
             </div>
           </div>
           <div hidden={tab !== "appearance"}>
@@ -172,13 +187,22 @@ export default function SettingsPage({
             <Panel className="panel">
               <h2>备份与恢复</h2>
               <div className="settings-actions">
-                <SettingAction icon={Download} onClick={() => call("export.backup")}>
+                <SettingAction
+                  icon={Download}
+                  onClick={() => call("export.backup")}
+                >
                   导出完整备份
                 </SettingAction>
-                <SettingAction icon={Upload} onClick={() => call("import.backup")}>
+                <SettingAction
+                  icon={Upload}
+                  onClick={() => call("import.backup")}
+                >
                   从备份恢复
                 </SettingAction>
-                <SettingAction icon={FolderOpen} onClick={() => call("data.folder")}>
+                <SettingAction
+                  icon={FolderOpen}
+                  onClick={() => call("data.folder")}
+                >
                   打开数据文件夹
                 </SettingAction>
               </div>
@@ -216,10 +240,13 @@ export default function SettingsPage({
           </div>
           <div hidden={tab !== "about"}>
             <Panel className="panel">
-              <TeamBrand />
+              <div className="about-brand-lockup">
+                <img src={associationLogo} alt="交叉学科创协" />
+                <TeamBrand />
+              </div>
               <h2>医栈通</h2>
               <p>{APP_LABEL}</p>
-              <p>由 Medtrix 团队制作</p>
+              <p>开发者 · 交叉学科创协Medtrix工作室</p>
             </Panel>
             <Panel className="panel" title="联系我们">
               <h2>联系我们</h2>

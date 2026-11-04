@@ -57,16 +57,16 @@
   font-size: 13px;
   color: var(--muted);
 }
-.today-weather label,
+.weather-location-trigger,
 .today-weather-reading {
   display: flex;
   align-items: center;
   gap: 5px;
   color: var(--muted);
 }
-.today-weather select {
+.weather-location-trigger {
   max-width: 100%;
-  padding: 2px 3px;
+  padding: 2px 0;
   border: 0;
   background: transparent;
   color: var(--text);
@@ -74,9 +74,10 @@
   font-size: 13px;
   cursor: pointer;
 }
-.today-weather select option {
-  background: var(--surface);
-  color: var(--text);
+.weather-location-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .today-weather-reading strong {
   font-size: clamp(17px, 2.4cqw, 26px);
@@ -249,6 +250,8 @@
 }
 .day-empty {
   margin: 2px 0;
+  padding: 2px 0;
+  text-align: start;
 }
 .day-more > summary,
 .today-extras > details > summary {
@@ -271,7 +274,115 @@
   margin-inline-start: auto;
   padding: 4px 0;
 }
+.today-activity {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.activity-card > .activity-heading {
+  justify-content: start;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+:root[data-theme] .activity-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+.activity-heading .day-link + .day-link {
+  margin-inline-start: 0;
+}
+.activity-card .day-time {
+  flex-basis: 3.7em;
+}
+.activity-card .day-time:empty {
+  display: none;
+}
+.mail-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.mail-unread {
+  background: var(--accent);
+}
+.mail-row time {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.weather-location-dialog {
+  width: min(470px, calc(100vw - 32px));
+  padding: 16px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--ui-line, var(--border));
+  border-radius: 12px;
+}
+.weather-location-dialog::backdrop {
+  background: rgb(9 17 28 / 0.42);
+}
+.weather-location-dialog header,
+.weather-location-dialog nav,
+.mail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.weather-location-dialog header {
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.weather-location-dialog header h2 {
+  margin: 0;
+}
+.weather-location-dialog input {
+  width: 100%;
+}
+.weather-location-dialog nav {
+  justify-content: space-between;
+  padding-block: 6px;
+  font-size: 12px;
+}
+.weather-location-dialog nav button,
+.weather-location-results button {
+  cursor: pointer;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  padding: 6px;
+}
+.weather-location-results {
+  max-height: min(340px, 52vh);
+  overflow: auto;
+  margin-top: 8px;
+}
+.weather-location-results button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border-bottom: 1px solid var(--ui-line, var(--border));
+}
+.weather-location-results button:hover {
+  background: var(--surface-soft);
+}
+.weather-location-results small,
+.mail-dialog p {
+  color: var(--muted);
+  font-size: 12px;
+}
+.mail-dialog form,
+.mail-dialog form > label {
+  display: grid;
+  gap: 6px;
+}
 @container workspace (max-width: 680px) {
+  .today-activity {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .day-row-text {
     display: grid;
     gap: 0;
@@ -284,7 +395,8 @@
   }
 }
 @container workspace (max-width: 520px) {
-  .today-days {
+  .today-days,
+  .today-activity {
     grid-template-columns: minmax(0, 1fr);
   }
   .today-hero {

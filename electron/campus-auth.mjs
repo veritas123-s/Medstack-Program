@@ -3,19 +3,38 @@ import brand from "./window-brand.cjs";
 
 function schoolLoginForm(expectedURL, action, credentials) {
   if (location.href !== expectedURL) return "changed";
-  const challenge = [
-    ...document.querySelectorAll(
-      'input[name="authcode" i], input[name*="captcha" i], input[name*="otp" i]',
+  const visible = (field) =>
+    field.getClientRects().length > 0 &&
+    getComputedStyle(field).visibility !== "hidden";
+  const fields = [...document.querySelectorAll("input")].filter(visible);
+  const challenge = fields.some((field) =>
+    /authcode|captcha|\botp\b|验证码|动态口令/i.test(
+      `${field.name} ${field.id} ${field.placeholder}`,
     ),
-  ].some((field) => field.getClientRects().length > 0);
-  if (challenge || /滑块验证|短信验证|扫码验证/.test(document.body.innerText))
+  );
+  if (
+    challenge ||
+    /请完成滑块|请拖动滑块|请输入短信验证码|请扫码完成验证/.test(
+      document.body.innerText,
+    )
+  )
     return "challenge";
-  const user = document.querySelector('input[name="username"]');
-  const pass = document.querySelector('input[name="password"]');
-  const form = pass?.form;
-  if (!form || user?.form !== form) return "no-form";
-  const target = new URL(form.action, location.href);
-  if (target.origin !== location.origin) return "changed";
+  const pass = fields.find((field) => field.type === "password");
+  const form = pass?.form || pass?.closest(".el-form");
+  const user = fields.find(
+    (field) =>
+      form?.contains(field) &&
+      field !== pass &&
+      /username|account|用户|账号|工号|学号|手机号/i.test(
+        `${field.name} ${field.id} ${field.placeholder} ${field.autocomplete}`,
+      ),
+  );
+  if (!form || !user) return "no-form";
+  if (
+    form.action &&
+    new URL(form.action, location.href).origin !== location.origin
+  )
+    return "changed";
   if (action === "fill") {
     for (const [field, value] of [
       [user, credentials.username],
@@ -29,11 +48,18 @@ function schoolLoginForm(expectedURL, action, credentials) {
       field.dispatchEvent(new Event("change", { bubbles: true }));
     }
   } else if (action === "submit") {
-    const button = form.querySelector(
-      'button[type="submit"],input[type="submit"],button',
-    );
+    const button = [...form.querySelectorAll('button,input[type="submit"]')]
+      .filter(visible)
+      .find(
+        (item) =>
+          item.type === "submit" ||
+          /^(登\s*录|sign in|log in)$/i.test(
+            (item.textContent || item.value || "").trim(),
+          ),
+      );
     if (button) button.click();
-    else form.requestSubmit();
+    else if (form instanceof HTMLFormElement) form.requestSubmit();
+    else return "no-form";
   }
   return "form";
 }
@@ -66,8 +92,14 @@ export function cookieForRestore(cookie, now = Date.now() / 1000) {
   return result;
 }
 export class CampusAuth {
-  constructor({ session, BrowserWindow, vault, changed }) {
-    Object.assign(this, { session, BrowserWindow, vault, changed });
+  constructor({ session, BrowserWindow, vault, changed, onManualReady }) {
+    Object.assign(this, {
+      session,
+      BrowserWindow,
+      vault,
+      changed,
+      onManualReady,
+    });
     this.window = null;
     this.backgroundWindow = null;
     this.revision = 0;
@@ -194,9 +226,15 @@ export class CampusAuth {
           .catch(() => this.set("attention", "学校页面未能打开"));
       return { action: "deny" };
     });
-    window.webContents.on("did-finish-load", () =>
-      this.persist().catch(() => this.set("attention", "学校会话未能保存")),
-    );
+    window.webContents.on("did-finish-load", () => {
+      this.persist().catch(() => this.set("error", "学校会话未能保存"));
+      if (visible && window.webContents.getURL().startsWith(ENTRY)) {
+        this.lastAttempt = 0;
+        this.revision++;
+        this.set("restored", "学校会话已恢复，正在同步。");
+        this.onManualReady?.();
+      }
+    });
     return window;
   }
   async load(window, url) {
@@ -227,10 +265,15 @@ export class CampusAuth {
       this.set("renewing", "正在通过学校认证恢复会话…");
       const window = (this.backgroundWindow = this.createWindow(false));
       await this.load(window, ENTRY);
-      const url = window.webContents.getURL();
-      if (!isSchoolURL(url)) throw new Error("学校认证地址不在允许范围内");
+      let url = window.webContents.getURL();
       const runForm = async (action, credentials = null) => {
         if (generation !== this.generation) throw new Error("登录状态已更改");
+        if (!isSchoolURL(url)) throw new Error("学校认证地址不在允许范围内");
+        if (
+          action !== "probe" &&
+          new URL(url).hostname !== new URL(ENTRY).hostname
+        )
+          throw new Error("请在学校官方窗口登录");
         const args = JSON.stringify([url, action, credentials]).replace(
           /</g,
           "\\u003c",
@@ -240,6 +283,7 @@ export class CampusAuth {
           .catch(() => {
             throw new Error("无法操作学校登录表单，请检查学校连接。");
           });
+        if (result === "changed" && action === "probe") return "no-form";
         if (
           result === "challenge" ||
           result === "changed" ||
@@ -250,7 +294,19 @@ export class CampusAuth {
         }
         return result;
       };
-      if ((await runForm("probe")) === "form") {
+      let probe = "no-form";
+      for (let attempt = 0; attempt < 30; attempt++) {
+        url = window.webContents.getURL();
+        if (url.startsWith(ENTRY)) break;
+        probe = await runForm("probe");
+        if (probe === "form") break;
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+      if (!url.startsWith(ENTRY) && probe !== "form") {
+        this.set("attention", "学校要求人工认证，请打开「学校连接」。");
+        throw Error(this.message);
+      }
+      if (probe === "form") {
         if (!this.vault.data.credentials) {
           this.set("attention", "请在教务服务的「学校连接」完成验证。");
           throw new Error(this.message);

@@ -1,4 +1,4 @@
-import { WEATHER_LOCATIONS } from "../src/domain/weather.mjs";
+import { getWeatherLocation } from "../src/domain/weather.mjs";
 import { beijingDay } from "../src/briefing.mjs";
 import { shiftDate } from "../src/calendar.mjs";
 import { boundedBytes } from "./public-fetch.mjs";
@@ -54,7 +54,7 @@ export function forecastForDay(slots, now = Date.now()) {
 }
 
 async function refresh(location, old, fetcher) {
-  const point = WEATHER_LOCATIONS[location];
+  const point = getWeatherLocation(location);
   const url = new URL(endpoint);
   url.searchParams.set("lat", point.latitude.toFixed(2));
   url.searchParams.set("lon", point.longitude.toFixed(2));
@@ -104,11 +104,9 @@ async function refresh(location, old, fetcher) {
 }
 
 export async function dashboardWeather(location, fetcher = fetch) {
-  if (
-    typeof location !== "string" ||
-    !Object.hasOwn(WEATHER_LOCATIONS, location)
-  )
-    throw Error("天气位置无效");
+  const point = getWeatherLocation(location);
+  if (!point) throw Error("天气位置无效");
+  location = point.id;
   let result = cache.get(location);
   if (!result || Date.now() >= result.expires) {
     if (!pending.has(location))

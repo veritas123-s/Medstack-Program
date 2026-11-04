@@ -1,15 +1,101 @@
-export const WEATHER_LOCATIONS = {
-  huangpu: { label: "上海 · 黄浦", latitude: 31.23, longitude: 121.47 },
-  pudong: { label: "上海 · 浦东", latitude: 31.21, longitude: 121.55 },
-  minhang: { label: "上海 · 闵行", latitude: 31.03, longitude: 121.44 },
-  suzhou: { label: "苏州", latitude: 31.3, longitude: 120.59 },
-  hangzhou: { label: "杭州", latitude: 30.27, longitude: 120.16 },
-  nanjing: { label: "南京", latitude: 32.06, longitude: 118.8 },
-  beijing: { label: "北京", latitude: 39.9, longitude: 116.4 },
-  guangzhou: { label: "广州", latitude: 23.13, longitude: 113.26 },
-  shenzhen: { label: "深圳", latitude: 22.54, longitude: 114.06 },
-  chengdu: { label: "成都", latitude: 30.57, longitude: 104.07 },
-  wuhan: { label: "武汉", latitude: 30.59, longitude: 114.31 },
-};
+import locations from "./weather-locations.json" with { type: "json" };
 
-export const DEFAULT_WEATHER_LOCATION = "huangpu";
+export const DEFAULT_WEATHER_LOCATION = "310101";
+const legacy = {
+  huangpu: "310101",
+  pudong: "310115",
+  minhang: "310112",
+  suzhou: "3205",
+  hangzhou: "3301",
+  nanjing: "3201",
+  beijing: "1101",
+  guangzhou: "4401",
+  shenzhen: "4403",
+  chengdu: "5101",
+  wuhan: "4201",
+};
+const byId = new Map(
+  locations.map(([id, parent, name, alias, latitude, longitude]) => [
+    id,
+    { id, parent, name, alias, latitude, longitude },
+  ]),
+);
+const simplified = {
+  臺: "台",
+  灣: "湾",
+  縣: "县",
+  區: "区",
+  門: "门",
+  羅: "罗",
+  龍: "龙",
+  東: "东",
+  興: "兴",
+  蘭: "兰",
+  彰: "彰",
+  義: "义",
+  蓮: "莲",
+  橋: "桥",
+  園: "园",
+  萬: "万",
+  蘆: "芦",
+  馬: "马",
+  崙: "仑",
+  鶯: "莺",
+  龜: "龟",
+};
+const normalize = (text) =>
+  text
+    .toLowerCase()
+    .replace(/[\s·-]/g, "")
+    .replace(/./gu, (char) => simplified[char] || char);
+
+export function getWeatherLocation(id) {
+  if (typeof id !== "string") return undefined;
+  return byId.get(Object.hasOwn(legacy, id) ? legacy[id] : id);
+}
+
+export function weatherPath(place) {
+  const labels = [place.name];
+  for (let item = byId.get(place.parent); item; item = byId.get(item.parent)) {
+    if (!labels.includes(item.name)) labels.unshift(item.name);
+  }
+  return labels;
+}
+
+export function weatherChildren(parent = "0") {
+  return [...byId.values()].filter((place) => place.parent === parent);
+}
+
+const shortRegion = (name) =>
+  name.replace(
+    /(?:维吾尔自治区|壮族自治区|回族自治区|自治区|特别行政区|省|市)$/u,
+    "",
+  );
+const searchIndex = [...byId.values()].map((place) => {
+  const names = weatherPath(place);
+  const path = names.join("");
+  const shortened = names.map(shortRegion).join("");
+  const provinceAndPlace = shortRegion(names[0]) + place.name;
+  const cityAndPlace = shortRegion(names.at(-2) || "") + place.name;
+  return {
+    place,
+    search: [path, shortened, provinceAndPlace, cityAndPlace, place.alias]
+      .map(normalize)
+      .join("|"),
+  };
+});
+
+export function searchWeatherLocations(query, limit = 24) {
+  const words = query.trim().split(/\s+/).map(normalize).filter(Boolean);
+  if (!words.length) return [];
+  return searchIndex
+    .filter(({ search }) => words.every((word) => search.includes(word)))
+    .map(({ place }) => place)
+    .toSorted(
+      (a, b) =>
+        Number(normalize(b.name) === words.join("")) -
+          Number(normalize(a.name) === words.join("")) ||
+        normalize(a.name).length - normalize(b.name).length,
+    )
+    .slice(0, limit);
+}

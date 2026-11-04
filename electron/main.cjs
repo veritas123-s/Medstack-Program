@@ -49,6 +49,7 @@ let win,
   bridge,
   assistant,
   learning,
+  mail,
   exams,
   news,
   workflows,
@@ -201,6 +202,10 @@ async function handle(action, p = {}) {
     const { dashboardWeather } = await import("./dashboard-weather.mjs");
     return dashboardWeather(p.location);
   }
+  if (action === "mail.state") return mail.refresh();
+  if (action === "mail.refresh") return mail.refresh(true);
+  if (action === "mail.configure") return mail.configure(p);
+  if (action === "mail.disconnect") return mail.disconnect();
   const result = await commandRouter.execute(action, p);
   requireAccount(accounts, action);
   if (result !== undefined) return result;
@@ -326,6 +331,7 @@ else {
         assistant?.cancel();
         news?.stop();
         exams?.stop();
+        mail?.suspend();
         clearInterval(schoolCoursesTimer);
         schoolCoursesTimer = null;
         if (learning) {
@@ -339,6 +345,29 @@ else {
         store.change((s) => domain.timerAction(s, "pause"));
         broadcast();
       };
+      let schoolSync;
+      function syncSchool() {
+        if (!accounts.authenticated || !personalReady || testMode) return;
+        schoolSync ||= (async () => {
+          const { shiftDate } = await import("../src/calendar.mjs");
+          const { beijingDay } = await import("../src/briefing.mjs");
+          const start = beijingDay().slice(0, 7) + "-01";
+          await handle("school.courses", {
+            start,
+            end: shiftDate(start, 1, "month"),
+          }).catch(() => {});
+          if (
+            accounts.authenticated &&
+            personalReady &&
+            auth.phase !== "attention"
+          )
+            await exams.sync().catch(() => {});
+        })().finally(() => {
+          schoolSync = null;
+        });
+        return schoolSync;
+      }
+      const runSchoolSync = () => syncSchool()?.catch(() => {});
       async function refreshAccess() {
         if (accounts.authenticated) {
           connectorInitialization ||= Promise.all([
@@ -349,22 +378,10 @@ else {
           learning.disconnected = false;
           personalReady = accounts.authenticated;
           if (!testMode && personalReady) news?.start();
-          if (!testMode && personalReady) exams?.start();
           if (!testMode && personalReady && !schoolCoursesTimer) {
-            const syncCourses = async () => {
-              if (!accounts.authenticated || !personalReady) return;
-              const { shiftDate } = await import("../src/calendar.mjs");
-              const { beijingDay } = await import("../src/briefing.mjs");
-              const start = beijingDay().slice(0, 7) + "-01";
-              await handle("school.courses", {
-                start,
-                end: shiftDate(start, 1, "month"),
-              });
-            };
-            const run = () => syncCourses().catch(() => {});
-            schoolCoursesTimer = setInterval(run, 30 * 60_000);
+            schoolCoursesTimer = setInterval(runSchoolSync, 30 * 60_000);
             schoolCoursesTimer.unref?.();
-            run();
+            runSchoolSync();
           }
           if (!testMode && personalReady && learning.status().connected)
             learning.sync().catch(() => {});
@@ -453,12 +470,20 @@ else {
       });
       const { Vault } = await import("./vault.mjs");
       const { CampusAuth } = await import("./campus-auth.mjs");
+      const { SjtuMail } = await import("./sjtu-mail.mjs");
       const { BriefingBridge } = await import("./briefing-bridge.mjs");
+      mail = new SjtuMail(
+        new SecretStore(dataDirectory, "sjtu-mail-vault.bin", safeStorage),
+      );
       auth = new CampusAuth({
         session: schoolSession,
         BrowserWindow,
         vault: new Vault(dataDirectory, safeStorage),
         changed: broadcast,
+        onManualReady: () => {
+          if (schoolSync) schoolSync.finally(runSchoolSync).catch(() => {});
+          else runSchoolSync();
+        },
       });
       bridge = new BriefingBridge(dataDirectory);
       const { ExamService, readExamPage } = await import("./exams.mjs");
@@ -707,6 +732,7 @@ else {
       app.quit();
     });
   app.on("before-quit", (event) => {
+    mail?.suspend();
     news?.stop();
     exams?.stop();
     accountSync?.stop();

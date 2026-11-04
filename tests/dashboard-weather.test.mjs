@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  getWeatherLocation,
+  searchWeatherLocations,
+  weatherChildren,
+  weatherPath,
+} from "../src/domain/weather.mjs";
+import {
   dashboardWeather,
   forecastForDay,
   parseForecast,
@@ -44,7 +50,11 @@ test("天气请求只接受预设位置并复用同一请求，失败不显示�
   const fetcher = async (url, options) => {
     requests++;
     assert.equal(url.origin, "https://api.met.no");
-    assert.equal(url.search, "?lat=31.03&lon=121.44");
+    const place = getWeatherLocation("minhang");
+    assert.equal(
+      url.search,
+      `?lat=${place.latitude.toFixed(2)}&lon=${place.longitude.toFixed(2)}`,
+    );
     assert.equal(options.credentials, "omit");
     return new Response("offline", { status: 503 });
   };
@@ -66,4 +76,22 @@ test("天气请求只接受预设位置并复用同一请求，失败不显示�
       stale: true,
     }),
   );
+});
+
+test("全国地区索引可按市区搜索，迁移旧天气选项，覆盖港澳台", () => {
+  assert.equal(weatherChildren().length, 34);
+  assert.deepEqual(weatherPath(getWeatherLocation("pudong")), [
+    "上海市",
+    "浦东新区",
+  ]);
+  assert.deepEqual(weatherPath(searchWeatherLocations("长沙 岳麓")[0]), [
+    "湖南省",
+    "长沙市",
+    "岳麓区",
+  ]);
+  assert.equal(searchWeatherLocations("新疆和安县")[0].name, "和安县");
+  assert.equal(searchWeatherLocations("台北 大安区")[0].name, "大安區");
+  assert.equal(weatherChildren("8100").length, 18);
+  assert.equal(weatherChildren("8200").length, 8);
+  assert.equal(getWeatherLocation("__proto__"), undefined);
 });

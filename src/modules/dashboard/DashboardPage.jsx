@@ -1,10 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { ArrowUpRight, CalendarDays, CheckSquare2, MapPin } from "lucide-react";
+import {
+  ArrowUpRight,
+  Bell,
+  CalendarDays,
+  CheckSquare2,
+  ListTodo,
+} from "lucide-react";
 import { WidgetBoard } from "../../platform/WidgetHost.jsx";
 import {
   DEFAULT_WEATHER_LOCATION,
-  WEATHER_LOCATIONS,
+  getWeatherLocation,
 } from "../../domain/weather.mjs";
+import WeatherPicker from "./WeatherPicker.jsx";
+import MailPanel from "./MailPanel.jsx";
 import { overview } from "./overview.mjs";
 import orbit from "./orbit.svg";
 import "./dashboard.css";
@@ -176,15 +184,16 @@ export default function DashboardPage({
 }) {
   const [location, setLocation] = useState(() => {
     const saved = localStorage.getItem(storageKey);
-    return Object.hasOwn(WEATHER_LOCATIONS, saved)
-      ? saved
-      : DEFAULT_WEATHER_LOCATION;
+    return getWeatherLocation(saved)?.id || DEFAULT_WEATHER_LOCATION;
   });
   const weather = useWeather(location);
   const now = Date.now();
   const model = overview(state, now);
   const { focus } = model;
   const tasks = new Map(model.tasks.map((task) => [task.id, task]));
+  const later = model.tasks.filter(
+    (task) => task.due !== model.day && task.due !== model.tomorrow.day,
+  );
   const open = (item) => {
     const task = item.kind === "task" && tasks.get(item.taskId);
     if (task && widgetActions?.editTask) widgetActions.editTask(task);
@@ -237,24 +246,14 @@ export default function DashboardPage({
               <span>{date.format(now)}</span>
             </div>
             <div className="today-weather" aria-label="天气预报">
-              <label>
-                <MapPin size={14} />
-                <select
-                  aria-label="天气位置"
-                  value={location}
-                  onChange={(event) => {
-                    const next = event.target.value;
-                    localStorage.setItem(storageKey, next);
-                    setLocation(next);
-                  }}
-                >
-                  {Object.entries(WEATHER_LOCATIONS).map(([id, place]) => (
-                    <option key={id} value={id}>
-                      {place.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <WeatherPicker
+                value={location}
+                call={call}
+                onChange={(next) => {
+                  localStorage.setItem(storageKey, next);
+                  setLocation(next);
+                }}
+              />
               <div className="today-weather-reading">
                 {current ? (
                   <>
@@ -312,6 +311,56 @@ export default function DashboardPage({
           setPage={setPage}
         />
       </div>
+      <div className="today-activity">
+        <section className="day-column activity-card" aria-label="其他待办">
+          <header className="activity-heading">
+            <h2>
+              <ListTodo size={16} />
+              其他待办
+            </h2>
+            <button
+              type="button"
+              className="day-link"
+              aria-label="查看全部待办"
+              onClick={() => setPage("tasks")}
+            >
+              <ArrowUpRight size={15} />
+            </button>
+          </header>
+          {later
+            .slice(0, 3)
+            .map((task) =>
+              render({
+                kind: "task",
+                id: task.id,
+                taskId: task.id,
+                title: task.title,
+                detail: task.project,
+                clock: task.due ? task.due.slice(5) : "未排期",
+              }),
+            )}
+          {!later.length && <p className="day-empty">暂无其他待办</p>}
+        </section>
+        <section className="day-column activity-card" aria-label="超星通知">
+          <header className="activity-heading">
+            <h2>
+              <Bell size={16} />
+              超星通知
+            </h2>
+            <button
+              type="button"
+              className="day-link"
+              aria-label="查看全部超星通知"
+              onClick={() => setPage("learning")}
+            >
+              <ArrowUpRight size={15} />
+            </button>
+          </header>
+          {model.notices.slice(0, 3).map(render)}
+          {!model.notices.length && <p className="day-empty">暂无新通知</p>}
+        </section>
+        <MailPanel call={call} />
+      </div>
       <div className="today-extras">
         {!!model.overdueEntries.length && (
           <details>
@@ -319,17 +368,15 @@ export default function DashboardPage({
             <Rows items={model.overdueEntries} limit={5} render={render} />
           </details>
         )}
-        <details>
-          <summary>
-            超星通知{model.notices.length ? ` ${model.notices.length}` : ""}
-          </summary>
-          <Rows
-            items={model.notices}
-            limit={5}
-            render={render}
-            empty="暂无新通知"
-          />
-        </details>
+        {state.campusAuth?.phase === "attention" && (
+          <button
+            type="button"
+            className="button small"
+            onClick={() => call("school.open")}
+          >
+            学校需验证
+          </button>
+        )}
         <details>
           <summary>小组件</summary>
           <WidgetBoard state={state} call={call} actions={widgetActions} />

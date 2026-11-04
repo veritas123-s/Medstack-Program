@@ -224,3 +224,48 @@ test("认证失效只重试一次、网络错误不自动登录", async () => {
   assert.equal(v.data.cookies.length, 0);
   assert.equal(v.data.credentials, null);
 });
+
+test("后台等待学校 SPA 表单渲染，遇到验证停止提交", async () => {
+  const v = new Vault(dir(), protection);
+  v.save({ credentials: { username: "synthetic", password: "synthetic" } });
+  for (const needsChallenge of [false, true]) {
+    const actions = [];
+    class Window extends EventEmitter {
+      constructor() {
+        super();
+        this.webContents = new EventEmitter();
+        this.webContents.setWindowOpenHandler = () => {};
+        this.webContents.getURL = () =>
+          "https://webvpn2.shsmu.edu.cn/ac/#/index";
+        this.webContents.executeJavaScript = async (source) => {
+          const [, action] = JSON.parse(
+            /\.\.\.(\[[\s\S]*\])\)$/.exec(source)[1],
+          );
+          actions.push(action);
+          if (actions.length === 1) return "no-form";
+          if (needsChallenge) return "challenge";
+          if (action === "submit") this.webContents.emit("did-finish-load");
+          return "form";
+        };
+      }
+      async loadURL() {}
+      isDestroyed() {
+        return false;
+      }
+      destroy() {}
+    }
+    const auth = new CampusAuth({
+      session: { cookies: { get: async () => [] } },
+      BrowserWindow: Window,
+      vault: v,
+    });
+    if (needsChallenge) {
+      await assert.rejects(auth.renew(), /学校要求验证/);
+      assert.equal(auth.phase, "attention");
+      assert.deepEqual(actions, ["probe", "probe"]);
+    } else {
+      await auth.renew();
+      assert.deepEqual(actions, ["probe", "probe", "fill", "submit"]);
+    }
+  }
+});

@@ -25,7 +25,8 @@ fs.writeFileSync(
         title: "合成学习通截止",
         deadline: assignmentDeadline,
         course: "合成课程",
-        assignmentURL: "https://mooc1.chaoxing.com/mooc2/work/task?courseId=1&classId=2&workId=3&enc=synthetic",
+        assignmentURL:
+          "https://mooc1.chaoxing.com/mooc2/work/task?courseId=1&classId=2&workId=3&enc=synthetic",
       },
     ],
   }),
@@ -60,16 +61,14 @@ try {
   ok("独立桌面启动、空白状态、渲染沙箱");
   await page.getByRole("button", { name: "整理侧栏" }).click();
   await page.getByRole("button", { name: "仅显示功能板块" }).click();
-  assert.match(
-    (await page.locator(".sidebar").getAttribute("class")) || "",
-    /collapsed/,
-  );
+  await page.locator(".sidebar.collapsed").waitFor();
   await page.getByRole("button", { name: "关闭", exact: true }).click();
   await page.getByRole("button", { name: "整理侧栏" }).click();
   await page
     .getByRole("dialog", { name: "整理侧栏" })
     .getByRole("button", { name: "展开侧栏" })
     .click();
+  await page.locator(".sidebar:not(.collapsed)").waitFor();
   await page.getByRole("button", { name: "关闭", exact: true }).click();
   ok("侧栏收起、展开与偏好保存");
   await page.locator(".new-task").click();
@@ -216,7 +215,15 @@ try {
                       code: number + "号楼",
                       name: number + "号楼",
                     }))
-                  : [{ code: "test", name: type === "AnswerAuxiliaryCampus" ? "浦东" : "测试选项" }],
+                  : [
+                      {
+                        code: "test",
+                        name:
+                          type === "AnswerAuxiliaryCampus"
+                            ? "浦东"
+                            : "测试选项",
+                      },
+                    ],
           }),
         );
       }
@@ -268,9 +275,13 @@ try {
   const roomSelects = page.locator(".room-filters select");
   await roomSelects.nth(0).selectOption({ label: "浦东" });
   const buildingSelect = roomSelects.nth(1);
-  await buildingSelect.locator('option[value="08号楼"]').waitFor({ state: "attached" });
-  assert.deepEqual((await buildingSelect.locator("option").allTextContents()).slice(1),
-    ["东8号楼", "东9号楼", "东11号楼", "东12号楼"]);
+  await buildingSelect
+    .locator('option[value="08号楼"]')
+    .waitFor({ state: "attached" });
+  assert.deepEqual(
+    (await buildingSelect.locator("option").allTextContents()).slice(1),
+    ["东8号楼", "东9号楼", "东11号楼", "东12号楼"],
+  );
   await buildingSelect.selectOption({ label: "东8号楼" });
   const floorProgress = page.getByRole("progressbar", { name: "已查询楼层" });
   await floorProgress.waitFor();
@@ -300,15 +311,26 @@ try {
     .getByText("合成 101", { exact: true })
     .waitFor();
   const roomCard = page.locator(".room-card").filter({ hasText: "合成 101" });
-  await roomCard.locator("summary").getByText("10:00", { exact: true }).waitFor();
+  await roomCard
+    .locator("summary")
+    .getByText("10:00", { exact: true })
+    .waitFor();
   await roomCard.locator("summary").click();
   await roomCard.getByText("当天 09:00 之后的占用").waitFor();
-  assert.deepEqual(await roomCard.locator(".room-day ul").first().locator("li strong").allTextContents(),
-    ["合成上午占用", "合成下午占用"]);
+  assert.deepEqual(
+    await roomCard
+      .locator(".room-day ul")
+      .first()
+      .locator("li strong")
+      .allTextContents(),
+    ["合成上午占用", "合成下午占用"],
+  );
   await page.getByLabel("查看时间（北京时间）").fill("15:00");
   await roomCard.getByText("今天之后无教务占用记录").waitFor();
   ok("展开教室按所选时间展示后续占用，按开始时间排序");
-  await page.screenshot({ path: path.join(output, "room-board-v630-expanded.png") });
+  await page.screenshot({
+    path: path.join(output, "room-board-v630-expanded.png"),
+  });
   ok("校园响应合成测试：成绩、楼栋状态、用途与时段边界");
   await page.getByLabel("查看时间（北京时间）").fill("08:30");
   await page.screenshot({ path: path.join(output, "room-board-v625.png") });
@@ -323,14 +345,17 @@ try {
     const learning = session.fromPartition("medstack-learning");
     learning.protocol.handle("https", async (request) => {
       const { pathname } = new URL(request.url);
-      const html = (body) => new Response(body, {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      });
+      const html = (body) =>
+        new Response(body, {
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        });
       if (pathname === "/mooc2/work/task" && request.method === "GET")
-        return html('<h1>合成作答页</h1><form method="post" action="/fixture-submit" enctype="multipart/form-data"><label>附件<input type="file" name="file"></label><button>提交合成作业</button></form>');
+        return html(
+          '<h1>合成作答页</h1><form method="post" action="/fixture-submit" enctype="multipart/form-data"><label>附件<input type="file" name="file"></label><button>提交合成作业</button></form>',
+        );
       if (pathname === "/fixture-submit" && request.method === "POST") {
         const file = (await request.formData()).get("file");
-        if (file?.name === "fixture.txt" && await file.text() === "fixture")
+        if (file?.name === "fixture.txt" && (await file.text()) === "fixture")
           return html("<h1>合成提交回执</h1>");
       }
       return new Response("", { status: 404 });
@@ -338,7 +363,9 @@ try {
   });
   await page.getByRole("button", { name: "超星学习通", exact: true }).click();
   const officialWindow = app.waitForEvent("window");
-  await page.getByRole("button", { name: "前往作答与提交", exact: true }).click();
+  await page
+    .getByRole("button", { name: "前往作答与提交", exact: true })
+    .click();
   const work = await officialWindow;
   await work.getByRole("heading", { name: "合成作答页" }).waitFor();
   assert.match(work.url(), /workId=3/);
@@ -445,7 +472,9 @@ try {
   await page.getByRole("tab", { name: "专注与提醒", exact: true }).click();
   await page.screenshot({ path: path.join(output, "settings-v630-focus.png") });
   await page.getByRole("tab", { name: "数据", exact: true }).click();
-  await page.getByRole("button", { name: "导出完整备份", exact: true }).waitFor();
+  await page
+    .getByRole("button", { name: "导出完整备份", exact: true })
+    .waitFor();
   await page.screenshot({ path: path.join(output, "settings-v630-data.png") });
   await page.getByRole("tab", { name: "专注与提醒", exact: true }).click();
   await page.getByLabel("每日专注目标（分钟）").fill("180");

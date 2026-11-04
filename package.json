@@ -1,7 +1,7 @@
 {
   "name": "ai-veritas",
   "productName": "Medstack",
-  "version": "6.3.4",
+  "version": "6.3.5",
   "private": true,
   "description": "医栈通 · 医栈事，一站通",
   "author": "Medtrix",
@@ -33,6 +33,7 @@
     "@earendil-works/pi-agent-core": "1.0.0",
     "@earendil-works/pi-ai": "1.0.0",
     "ical.js": "2.2.1",
+    "imapflow": "2.10.0",
     "lucide-react": "1.47.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -50,7 +51,7 @@
     "appId": "local.ai.veritas",
     "productName": "Medstack",
     "directories": {
-      "output": "release-medstack-6.3.4"
+      "output": "release-medstack-6.3.5"
     },
     "files": [
       "dist/**/*",
@@ -63,7 +64,10 @@
       "src/news-window.mjs",
       "src/news-preferences.mjs",
       "docs/licenses/SJTU-AGENT-MIT.txt",
+      "docs/licenses/AREACITY-MIT.txt",
+      "docs/WEATHER-DATA.md",
       "src/domain/**/*.mjs",
+      "src/domain/weather-locations.json",
       "src/platform/**/*.mjs",
       "src/themes/catalog.mjs",
       "src/assistant.mjs",
