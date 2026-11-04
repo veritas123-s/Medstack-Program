@@ -1,0 +1,9 @@
+{
+  "title": "医栈通 V6.3.6",
+  "notes": [
+    "桌面考试查询支持导入本机考试表、筛选班级并选中加入日历。",
+    "教务本学期查询未确认时自动重试，超星作业页显示已交和已截止的作业。"
+  ],
+  "urgent": false,
+  "platforms": ["windows", "android", "macos_x64", "macos_arm64"]
+}

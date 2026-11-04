@@ -28,6 +28,13 @@ fs.writeFileSync(
         assignmentURL:
           "https://mooc1.chaoxing.com/mooc2/work/task?courseId=1&classId=2&workId=3&enc=synthetic",
       },
+      {
+        id: "work:1:2:4",
+        kind: "assignment",
+        title: "合成已交作业",
+        course: "合成课程",
+        done: true,
+      },
     ],
   }),
 );
@@ -267,6 +274,61 @@ try {
     .first()
     .waitFor();
   await page.getByRole("button", { name: "教务服务", exact: true }).click();
+  const examFile = path.join(dataDir, "exam-announcement.json");
+  const examTime = beijingDay(assignmentDeadline);
+  fs.writeFileSync(
+    examFile,
+    JSON.stringify({
+      schema: 1,
+      title: "合成考试表",
+      campus: "浦东校区",
+      notice: "请带好考试证",
+      items: [
+        {
+          week: 11,
+          title: "合成考试甲",
+          start: `${examTime}T09:00`,
+          end: `${examTime}T10:30`,
+          location: "东8-101",
+          cohort: "合成一班",
+        },
+        {
+          week: 11,
+          title: "合成考试乙",
+          start: `${examTime}T09:00`,
+          end: `${examTime}T10:30`,
+          location: "东8-102",
+          cohort: "合成二班",
+        },
+      ],
+    }),
+  );
+  await app.evaluate(({ dialog }, file) => {
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [file],
+    });
+  }, examFile);
+  await page.getByRole("button", { name: "导入考试表", exact: true }).click();
+  await page.getByText("已导入 2 条考场安排", { exact: true }).waitFor();
+  await page
+    .getByRole("textbox", { name: "搜索班级、课程或考场" })
+    .fill("合成二班");
+  await page.getByRole("checkbox", { name: "选择 合成考试乙 东8-102" }).check();
+  await page
+    .getByRole("button", { name: "加入日历（1）", exact: true })
+    .click();
+  await page.getByText("已加入 1 场考试", { exact: true }).waitFor();
+  const importedExams = await page.evaluate(async () =>
+    (await window.veritas.call("state")).events.filter((event) =>
+      event.calendarUid?.startsWith("exam-announcement:"),
+    ),
+  );
+  assert.deepEqual(
+    importedExams.map(({ title, location }) => [title, location]),
+    [["考试 · 合成考试乙", "浦东校区 东8-102"]],
+  );
+  ok("本机考试表按班级筛选，只添加选中的考场");
   await page.getByRole("button", { name: "成绩查询", exact: true }).click();
   await page.getByLabel("学年", { exact: true }).fill("2026-2027");
   await page.getByRole("button", { name: "查询成绩", exact: true }).click();
@@ -362,6 +424,9 @@ try {
     });
   });
   await page.getByRole("button", { name: "超星学习通", exact: true }).click();
+  await page.getByRole("button", { name: "作业 2", exact: true }).click();
+  await page.getByText("合成已交作业", { exact: true }).waitFor();
+  ok("作业筛选显示已同步的已交作业");
   const officialWindow = app.waitForEvent("window");
   await page
     .getByRole("button", { name: "前往作答与提交", exact: true })
@@ -453,6 +518,16 @@ try {
   );
   ok("完整备份导出与恢复，恢复前自动备份");
   await page.getByRole("button", { name: "设置与数据" }).click();
+  await page.getByRole("tab", { name: "关于", exact: true }).click();
+  await page
+    .getByText("开发者 · 交叉学科创协Medtrix工作室", { exact: true })
+    .waitFor();
+  assert.ok(
+    await page
+      .getByRole("img", { name: "交叉学科创协", exact: true })
+      .evaluate((logo) => logo.naturalWidth > 0),
+  );
+  ok("发行版关于页署名与图标");
   await page.getByRole("tab", { name: "帮助", exact: true }).click();
   await page.getByRole("button", { name: "使用说明", exact: true }).click();
   await page

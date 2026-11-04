@@ -2,6 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { HOME, isSchoolURL, schoolAuthRequired } from "./campus.mjs";
+import {
+  announcementEvents,
+  examAnnouncementFile,
+  examAnnouncementLimit,
+  loadExamAnnouncement,
+  readExamAnnouncement,
+  sameExamEvent,
+} from "./exam-announcements.mjs";
 export const EXAM_URL = "https://jwstu.shsmu.edu.cn/Home/PJExam";
 export const EXAM_VPN_URL = HOME + "/Home/PJExam";
 export function currentExamTerm(date = new Date()) {
@@ -213,7 +221,13 @@ async function queryExamDocument(preferred) {
         break;
       }
       attempted++;
-      const page = await readTerm(year, semester, gradeChanged);
+      let page = await readTerm(year, semester, gradeChanged);
+      if (
+        !page &&
+        year.label === preferred.academicYear &&
+        semester.number === preferred.semester
+      )
+        page = await readTerm(year, semester, false);
       if (page) pages.push(page);
       else failed++;
     }
@@ -361,7 +375,12 @@ export function mergeExamEvents(state, items, previousItems = []) {
       event.deletedAt = Date.now();
   }
   for (const [calendarUid, x] of current) {
-    if (state.events.some((e) => e.calendarUid === calendarUid)) continue;
+    if (
+      state.events.some(
+        (e) => e.calendarUid === calendarUid || sameExamEvent(e, x),
+      )
+    )
+      continue;
     state.events.push({
       id: calendarUid,
       title: "考试 · " + x.title,
@@ -383,7 +402,7 @@ export function mergeExamEvents(state, items, previousItems = []) {
 }
 export class ExamService {
   constructor({ directory, readPage, allowed, store, changed = () => {} }) {
-    Object.assign(this, { readPage, allowed, store, changed });
+    Object.assign(this, { directory, readPage, allowed, store, changed });
     this.file = path.join(directory, "school-exams.json");
     this.data = { items: [], syncedAt: null };
     this.error = "";
@@ -392,6 +411,11 @@ export class ExamService {
       const x = JSON.parse(fs.readFileSync(this.file));
       if (Array.isArray(x.items)) this.data = x;
     } catch {}
+    try {
+      this.announcement = loadExamAnnouncement(directory);
+    } catch {
+      this.announcementError = "本机考试表读取失败，原文件已保留。";
+    }
   }
   status() {
     return {
@@ -399,7 +423,43 @@ export class ExamService {
       error: this.error,
       busy: !!this.pending,
       source: EXAM_URL,
+      announcement: this.announcement,
+      announcementError: this.announcementError,
     };
+  }
+  importAnnouncement(input) {
+    if (!this.allowed()) throw Error("请先登录");
+    const announcement = readExamAnnouncement(input);
+    const file = path.join(this.directory, examAnnouncementFile);
+    const content = JSON.stringify({
+      ...announcement,
+      items: announcement.items.map(({ id, ...row }) => row),
+    });
+    if (Buffer.byteLength(content) > examAnnouncementLimit)
+      throw Error("考试表文件过大");
+    fs.writeFileSync(file + ".pending", content, {
+      mode: 0o600,
+    });
+    fs.renameSync(file + ".pending", file);
+    this.announcement = announcement;
+    this.announcementError = "";
+    this.changed();
+    return { count: announcement.items.length };
+  }
+  addAnnouncementEvents(ids) {
+    if (!this.allowed() || !this.announcement)
+      throw Error("请先打开已导入的考试表");
+    const events = announcementEvents(
+      this.announcement,
+      ids,
+      this.store.state.events,
+    );
+    if (events.length) {
+      this.store.backup();
+      this.store.change((s) => s.events.push(...events));
+      this.changed();
+    }
+    return { count: events.length };
   }
   async sync() {
     if (!this.allowed()) throw Error("请先登录");
@@ -413,9 +473,17 @@ export class ExamService {
         const parsed = [];
         let completed = 0;
         const confirmed = new Set();
+        const term = currentExamTerm();
+        let currentTermCount = null;
         for (const page of pages) {
           try {
-            parsed.push(...parseExamTables(page));
+            const entries = parseExamTables(page);
+            parsed.push(...entries);
+            if (
+              page.academicYear === term.academicYear &&
+              Number(page.semester) === term.semester
+            )
+              currentTermCount = entries.length;
             completed++;
             confirmed.add(JSON.stringify([page.academicYear, page.semester]));
           } catch (error) {
@@ -471,6 +539,7 @@ export class ExamService {
           items,
           syncedAt: Date.now(),
           completedTerms: completed,
+          currentTermCount,
           incomplete: failed > 0,
         };
         fs.writeFileSync(this.file + ".pending", JSON.stringify(data));

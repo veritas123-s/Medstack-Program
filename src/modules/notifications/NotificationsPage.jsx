@@ -53,6 +53,20 @@ export default function NotificationsPage({
     ).values(),
   ];
   const history = learningEntries(state, l, { history: true });
+  const currentAssignments = a.entries.filter(
+    (entry) => entry.kind === "assignment",
+  );
+  const pastAssignments = history.filter((entry) => {
+    if (entry.kind !== "assignment") return false;
+    const choice = state.workflows?.courseChoices?.[entry.courseKey];
+    if (choice === "hide") return false;
+    const course = catalog.find((item) => item.key === entry.courseKey);
+    return (
+      !course?.archived ||
+      state.workflows?.includeArchived ||
+      choice === "follow"
+    );
+  });
   const deleted = learningEntries(state, l, { deleted: true }).sort(
     (a, b) => b.time - a.time,
   );
@@ -61,12 +75,17 @@ export default function NotificationsPage({
       ? deleted
       : filter === "history"
         ? history
-        : a.entries.filter(
-            (e) =>
-              filter === "all" ||
-              (filter === "unread" && !read.includes(e.id)) ||
-              filter === e.kind,
-          );
+        : filter === "assignment"
+          ? [
+              ...currentAssignments,
+              ...pastAssignments.toSorted((a, b) => b.time - a.time),
+            ]
+          : a.entries.filter(
+              (e) =>
+                filter === "all" ||
+                (filter === "unread" && !read.includes(e.id)) ||
+                filter === e.kind,
+            );
   const visibleEntries = learningOnly
     ? entries.filter((e) => ["notice", "assignment"].includes(e.kind))
     : entries;
@@ -239,7 +258,10 @@ export default function NotificationsPage({
               ["unread", "未读"],
               ["course", "课程"],
               ["task", "任务"],
-              ["assignment", "作业"],
+              [
+                "assignment",
+                `作业 ${currentAssignments.length + pastAssignments.length}`,
+              ],
               ["notice", "超星通知"],
               ["history", `历史与待确认 ${history.length}`],
               ["deleted", `已删除 ${deleted.length}`],

@@ -306,22 +306,21 @@ export class LearningService {
             pages = 1;
           for (let page = 1; page <= pages; page++) {
             await pause();
-            const r = await this.parse(
-              await this.read(
-                `https://mooc1.chaoxing.com/mooc2/work/list?courseId=${c.id}&classId=${c.classId}&cpi=${c.cpi}&enc=${encodeURIComponent(enc)}&stuenc=${encodeURIComponent(stuenc)}&openc=${encodeURIComponent(openc)}&ut=s&t=${Date.now()}&isdisplaytable=2&pageNum=${page}`,
-              ),
-              "work",
-            );
+            const listURL = `https://mooc1.chaoxing.com/mooc2/work/list?courseId=${c.id}&classId=${c.classId}&cpi=${c.cpi}&enc=${encodeURIComponent(enc)}&stuenc=${encodeURIComponent(stuenc)}&openc=${encodeURIComponent(openc)}&ut=s&t=${Date.now()}&isdisplaytable=2&pageNum=${page}`;
+            const r = await this.parse(await this.read(listURL), "work");
             if (!r.recognized || r.pages > 20) throw Error();
             pages = r.pages;
             for (const x of r.rows) {
-              if (!isLearningURL(x.url)) continue;
-              const u = new URL(x.url),
-                workId = u.searchParams.get("workId");
+              if (!x.url) continue;
+              const u = URL.parse(x.url, listURL);
+              if (!u || !isLearningURL(u.href)) continue;
+              const workId = u.searchParams.get("workId");
               if (!/^\d+$/.test(workId || "")) continue;
               const id = `work:${c.id}:${c.classId}:${workId}`;
+              const officialURL = assignmentPageURL(u.href, id);
               let timing = parseDeadline(x.time);
               if (
+                officialURL &&
                 (!timing.deadline || timing.estimated) &&
                 !/已完成|已提交|已批|待批|已互[评評]/.test(x.status) &&
                 collected.length < 60
@@ -329,7 +328,7 @@ export class LearningService {
                 try {
                   await pause();
                   const detail = await this.parse(
-                    await this.read(u.href),
+                    await this.read(officialURL),
                     "deadline",
                   );
                   const exact = parseDeadline(detail.text);
@@ -338,7 +337,7 @@ export class LearningService {
               }
               collected.push({
                 id,
-                assignmentURL: assignmentPageURL(u.href, id),
+                assignmentURL: officialURL,
                 courseKey: `${c.id}:${c.classId}`,
                 kind: "assignment",
                 title: x.title,

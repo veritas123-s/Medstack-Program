@@ -121,6 +121,8 @@ export function createCommandRouter(context) {
           "school.scores",
           "school.exams",
           "school.exams.open",
+          "school.exams.announcement.import",
+          "school.exams.announcement.add",
           "school.detail",
           "school.rooms.options",
           "school.rooms",

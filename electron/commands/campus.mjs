@@ -68,7 +68,8 @@ async function buildingSchedule(auth, base, params, report) {
       BuildCode,
     });
     const rooms = [];
-    let failedFloors = 0, completedFloors = 0;
+    let failedFloors = 0,
+      completedFloors = 0;
     progress("floors", 0, floors.length);
     for (const floor of floors) {
       if (!active()) return null;
@@ -87,7 +88,8 @@ async function buildingSchedule(auth, base, params, report) {
         progress("floors", ++completedFloors, floors.length);
       }
     }
-    let next = 0, completedRooms = 0;
+    let next = 0,
+      completedRooms = 0;
     progress("rooms", 0, rooms.length);
     const load = async () => {
       while (active() && next < rooms.length) {
@@ -122,6 +124,21 @@ async function buildingSchedule(auth, base, params, report) {
 
 export default async function execute(action, p, context) {
   if (action === "school.exams") return context.exams.sync();
+  if (action === "school.exams.announcement.add")
+    return context.exams.addAnnouncementEvents(p.ids);
+  if (action === "school.exams.announcement.import") {
+    const { examAnnouncementLimit } = await import("../exam-announcements.mjs");
+    const file = await context.dialog.showOpenDialog(context.getWindow(), {
+      properties: ["openFile"],
+      filters: [{ name: "考试表", extensions: ["json"] }],
+    });
+    if (file.canceled) return { canceled: true };
+    if (context.fs.statSync(file.filePaths[0]).size > examAnnouncementLimit)
+      throw Error("考试表文件过大");
+    return context.exams.importAnnouncement(
+      context.fs.readFileSync(file.filePaths[0], "utf8"),
+    );
+  }
   if (action === "school.exams.open") {
     const { EXAM_VPN_URL } = await import("../exams.mjs");
     await context.auth.open(EXAM_VPN_URL);
@@ -223,8 +240,13 @@ export default async function execute(action, p, context) {
     )
       throw Error("请选择校区、楼栋和日期");
     return buildingSchedule(auth, campus.ROOMS, p, (progress) => {
-      if (typeof p.requestId === "string" && p.requestId.length <= 64 &&
-          win && !win.isDestroyed() && !win.webContents.isDestroyed())
+      if (
+        typeof p.requestId === "string" &&
+        p.requestId.length <= 64 &&
+        win &&
+        !win.isDestroyed() &&
+        !win.webContents.isDestroyed()
+      )
         win.webContents.send("veritas:room-progress", {
           ...progress,
           requestId: p.requestId,
