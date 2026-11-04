@@ -39,8 +39,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -55,6 +53,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.rememberCoroutineScope
@@ -109,10 +108,9 @@ fun MedstackApp(ui: MedstackUiState, repository: MedstackRepository) {
     var page by rememberSaveable { mutableStateOf(MobilePage.Today) }
     val subpage = page in listOf(MobilePage.Assistant, MobilePage.Campus, MobilePage.Connection)
     BackHandler(subpage) { page = MobilePage.More }
-    val messages = remember { SnackbarHostState() }
     LaunchedEffect(ui.message) {
         if (ui.message.isNotBlank()) {
-            messages.showSnackbar(ui.message)
+            delay(4000)
             repository.clearMessage()
         }
     }
@@ -126,7 +124,6 @@ fun MedstackApp(ui: MedstackUiState, repository: MedstackRepository) {
         }
     }
     Scaffold(
-        snackbarHost = { SnackbarHost(messages) },
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
                 listOf(MobilePage.Today, MobilePage.Tasks, MobilePage.Schedule, MobilePage.Focus, MobilePage.More).forEach { item ->
@@ -204,7 +201,11 @@ private fun MobileHeader(ui: MedstackUiState, page: MobilePage, repository: Meds
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(page.title, Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium)
+        Column(Modifier.weight(1f)) {
+            Text(page.title, style = MaterialTheme.typography.headlineMedium)
+            if (ui.message.isNotBlank()) Text(ui.message, style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
         if (back != null) TextButton(back) { Text("返回更多") }
         else TextButton(repository::syncNow, enabled = ui.syncPhase != "syncing") {
             Text(when (ui.syncPhase) { "synced" -> "已同步"; "syncing" -> "同步中"; "conflict" -> "有冲突"; else -> "同步" })
@@ -455,6 +456,7 @@ private fun FocusScreen(ui: MedstackUiState, repository: MedstackRepository) {
     var customMinutes by rememberSaveable { mutableStateOf("") }
     var addingLog by rememberSaveable { mutableStateOf(false) }
     var logMinutes by rememberSaveable { mutableStateOf("") }
+    val focusManager = LocalFocusManager.current
     val inputMinutes = customMinutes.toIntOrNull() ?: minutes
     val remaining = if (ui.focusStartedAt == null) inputMinutes * 60L
         else ((ui.focusUntil ?: ui.clock) - ui.clock).coerceAtLeast(0) / 1000
@@ -464,37 +466,52 @@ private fun FocusScreen(ui: MedstackUiState, repository: MedstackRepository) {
             .filter { it.isNull("deletedAt") }.sortedByDescending { it.optLong("startedAt") }
     }
     val dateFormat = remember { DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.of("Asia/Shanghai")) }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      item {
-       Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(String.format("%02d:%02d", remaining / 60, remaining % 60), style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary)
-        if (ui.focusStartedAt == null) {
-            ChoiceChips(listOf(15, 25, 45, 60, 90).map { it.toString() to "$it 分" }, minutes.toString()) {
-                minutes = it.toInt()
-                customMinutes = ""
+    Column(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item {
+                Text(String.format("%02d:%02d", remaining / 60, remaining % 60), Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center)
             }
-            OutlinedTextField(customMinutes, { customMinutes = it.take(3).filter(Char::isDigit) }, label = { Text("自定义分钟（1–180）") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-            Button({ repository.startFocus(inputMinutes) }, enabled = inputMinutes in 1..180, modifier = Modifier.fillMaxWidth()) { Text("开始专注") }
-        } else {
-            Button({ repository.finishFocus(false) }, modifier = Modifier.fillMaxWidth()) { Text("结束并保存") }
-        }
-        HorizontalDivider()
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("专注记录", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
-            TextButton({ addingLog = true }, enabled = ui.focusStartedAt == null) { Text("补记") }
-        }
-       }
-      }
-        if (records.isEmpty()) item { EmptyCard("暂无专注记录") }
-        items(records) { record ->
-            val seconds = record.optLong("durationMs") / 1000
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Column(Modifier.weight(1f)) {
-                    Text(record.optString("title").ifBlank { "专注" }, style = MaterialTheme.typography.titleMedium)
-                    Text(dateFormat.format(Instant.ofEpochMilli(record.optLong("startedAt"))), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (ui.focusStartedAt == null) item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ChoiceChips(listOf(15, 25, 45, 60, 90).map { it.toString() to "$it 分" }, if (customMinutes.isEmpty()) minutes.toString() else "") {
+                        minutes = it.toInt()
+                        customMinutes = ""
+                    }
+                    OutlinedTextField(customMinutes, { customMinutes = it.take(3).filter(Char::isDigit) },
+                        label = { Text("自定义分钟（1–180）") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
                 }
-                Text(if (seconds < 60) "$seconds 秒" else "${seconds / 60} 分钟")
+            }
+            item {
+                HorizontalDivider()
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("专注记录", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                    TextButton({ addingLog = true }, enabled = ui.focusStartedAt == null) { Text("补记") }
+                }
+            }
+            if (records.isEmpty()) item { EmptyCard("暂无专注记录") }
+            items(records) { record ->
+                val seconds = record.optLong("durationMs") / 1000
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text(record.optString("title").ifBlank { "专注" }, style = MaterialTheme.typography.titleMedium)
+                        Text(dateFormat.format(Instant.ofEpochMilli(record.optLong("startedAt"))), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(if (seconds < 60) "$seconds 秒" else "${seconds / 60} 分钟")
+                }
+            }
+        }
+        Surface {
+            val actionModifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+            if (ui.focusStartedAt == null) {
+                Button({
+                    focusManager.clearFocus()
+                    repository.startFocus(inputMinutes)
+                }, enabled = inputMinutes in 1..180, modifier = actionModifier) { Text("开始专注") }
+            } else {
+                Button({ repository.finishFocus(false) }, modifier = actionModifier) { Text("结束并保存") }
             }
         }
     }

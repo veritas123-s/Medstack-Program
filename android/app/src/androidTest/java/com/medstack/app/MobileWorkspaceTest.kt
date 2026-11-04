@@ -113,8 +113,10 @@ class MobileWorkspaceTest {
         compose.runOnIdle { assertTrue(repository.state.schedule.any { it.title == "合成手机新增日程" }) }
         screenshot("schedule")
         navigate("专注")
-        compose.onNodeWithText("自定义分钟（1–180）").performTextInput("37")
-        compose.onNodeWithText("开始专注").performClick()
+        compose.onNodeWithText("自定义分钟（1–180）").performScrollTo().performTextReplacement("37")
+        screenshot("focus-keyboard")
+        compose.onNodeWithText("开始专注").assertIsDisplayed().performClick()
+        compose.waitUntil(5000) { repository.state.focusStartedAt != null }
         compose.runOnIdle { assertEquals(37 * 60000L, repository.state.focusUntil!! - repository.state.focusStartedAt!!) }
         Thread.sleep(1300)
         compose.onNodeWithText("结束并保存").performClick()
