@@ -1,7 +1,7 @@
 {
   "name": "ai-veritas",
   "productName": "Medstack",
-  "version": "6.3.0",
+  "version": "6.3.2",
   "private": true,
   "description": "医栈通 · 医栈事，一站通",
   "author": "Medtrix",
@@ -50,7 +50,7 @@
     "appId": "local.ai.veritas",
     "productName": "Medstack",
     "directories": {
-      "output": "release-medstack-6.3.0"
+      "output": "release-medstack-6.3.2"
     },
     "files": [
       "dist/**/*",

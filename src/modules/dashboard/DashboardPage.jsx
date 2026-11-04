@@ -1,23 +1,16 @@
 import React from "react";
 import Panel from "../../shared/Panel.jsx";
-import {
-  Clock3,
-  ArrowUpRight,
-  CalendarDays,
-  CheckSquare2,
-  Bell,
-} from "lucide-react";
+import { ChevronRight, CalendarDays, CheckSquare2, Bell } from "lucide-react";
 import { duration } from "../../components.jsx";
 import { WidgetBoard } from "../../platform/WidgetHost.jsx";
 import { overview } from "./overview.mjs";
 const Row = ({ title, detail, tag, onClick }) => (
-  <button className="overview-row" onClick={onClick}>
+  <button className="overview-row" onClick={onClick} title={title}>
     <span>
       <b>{title}</b>
       {detail && <small>{detail}</small>}
     </span>
     {tag && <em>{tag}</em>}
-    <ArrowUpRight size={14} />
   </button>
 );
 export default function DashboardPage({
@@ -41,7 +34,7 @@ export default function DashboardPage({
   const heading = (title, route, Icon) => (
     <div className="panel-heading">
       <h2>
-        <Icon size={18} />
+        <Icon size={16} />
         {title}
       </h2>
       <button
@@ -49,7 +42,7 @@ export default function DashboardPage({
         aria-label={"查看" + title}
         onClick={() => setPage(route)}
       >
-        <ArrowUpRight size={17} />
+        <ChevronRight size={16} />
       </button>
     </div>
   );
@@ -66,7 +59,6 @@ export default function DashboardPage({
           className="overview-summary overview-clock"
           aria-label="当前时间"
         >
-          <Clock3 size={22} />
           <strong className="overview-metric">
             {now.toLocaleTimeString("zh-CN", {
               timeZone: "Asia/Shanghai",
@@ -89,7 +81,12 @@ export default function DashboardPage({
         >
           <span>今日专注</span>
           <strong className="overview-metric">{duration(todayMs)}</strong>
-          <div className="overview-progress">
+          <div
+            className="overview-progress"
+            role="progressbar"
+            aria-label="今日专注目标完成度"
+            aria-valuenow={progress}
+          >
             <i style={{ width: progress + "%" }} />
           </div>
           <small>
@@ -101,9 +98,10 @@ export default function DashboardPage({
           aria-label="今日截止"
         >
           <div>
-            <CalendarDays size={19} />
-            <b>今日截止</b>
-            <span className="count">{model.deadlines.length}</span>
+            <span>今日截止</span>
+            <strong className="overview-metric">
+              {model.deadlines.length}
+            </strong>
           </div>
           <strong className="overview-deadline-title">
             {model.deadlines[0]?.title || "今天没有截止事项"}
@@ -127,7 +125,7 @@ export default function DashboardPage({
                 key={t.id}
                 title={t.title}
                 detail={t.project || "收集箱"}
-                tag={t.due || ""}
+                tag={t.due ? t.due.slice(5) : ""}
                 onClick={() =>
                   widgetActions?.editTask
                     ? widgetActions.editTask(t)
@@ -138,55 +136,54 @@ export default function DashboardPage({
             {!model.tasks.length && <p className="overview-empty">暂无待办</p>}
           </div>
         </Panel>
-        <Panel
-          className="panel overview-card overview-schedule"
-          title="今日日程"
-        >
-          {heading("今日日程", "calendar", CalendarDays)}
-          {model.coverage.status !== "fresh" && (
-            <span className="overview-status">
-              {model.coverage.status === "missing"
-                ? "课表未同步"
-                : "课表需更新"}
-            </span>
-          )}
-          <div className="overview-card-list">
-            {model.schedule.map((e) => (
-              <Row
-                key={e.id}
-                title={e.title}
-                detail={e.detail}
-                tag={e.clock}
-                onClick={() => setPage("calendar")}
-              />
-            ))}
-            {!model.schedule.length && (
-              <p className="overview-empty">暂无已保存安排</p>
+        <div className="overview-side">
+          <Panel
+            className="panel overview-card overview-schedule"
+            title="今日日程"
+          >
+            {heading("今日日程", "calendar", CalendarDays)}
+            {model.coverage.status !== "fresh" && (
+              <span className="overview-status">
+                {model.coverage.status === "missing"
+                  ? "课表未同步"
+                  : "课表需更新"}
+              </span>
             )}
-          </div>
-        </Panel>
-        <Panel
-          className="panel overview-card overview-notices"
-          title="超星通知"
-        >
-          {heading("超星通知", "learning", Bell)}
-          <div className="overview-card-list">
-            {model.notices.map((e) => (
-              <Row
-                key={e.id}
-                title={e.title}
-                detail={e.subtitle}
-                tag={e.kind === "news" ? "公开" : "超星"}
-                onClick={() =>
-                  setPage(e.kind === "news" ? "campus-news" : "learning")
-                }
-              />
-            ))}
-            {!model.notices.length && (
-              <p className="overview-empty">暂无新消息</p>
-            )}
-          </div>
-        </Panel>
+            <div className="overview-card-list">
+              {model.schedule.map((e) => (
+                <Row
+                  key={e.id}
+                  title={e.title}
+                  detail={e.detail}
+                  tag={e.clock}
+                  onClick={() => setPage("calendar")}
+                />
+              ))}
+              {!model.schedule.length && (
+                <p className="overview-empty">暂无已保存安排</p>
+              )}
+            </div>
+          </Panel>
+          <Panel
+            className="panel overview-card overview-notices"
+            title="超星通知"
+          >
+            {heading("超星通知", "learning", Bell)}
+            <div className="overview-card-list">
+              {model.notices.map((e) => (
+                <Row
+                  key={e.id}
+                  title={e.title}
+                  detail={e.subtitle}
+                  onClick={() => setPage("learning")}
+                />
+              ))}
+              {!model.notices.length && (
+                <p className="overview-empty">暂无新消息</p>
+              )}
+            </div>
+          </Panel>
+        </div>
       </div>
       <details className="home-extras">
         <summary>小组件</summary>

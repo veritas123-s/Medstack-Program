@@ -31,9 +31,6 @@ export default function TasksPage({
         </button>
       </div>
       <div className="task-toolbar">
-        <button className="button small" onClick={manageLists}>
-          管理清单
-        </button>
         <div className="tabs">
           {[
             ["active", "待办"],
@@ -59,6 +56,9 @@ export default function TasksPage({
             <option key={p}>{p}</option>
           ))}
         </select>
+        <button className="button small" onClick={manageLists}>
+          管理清单
+        </button>
       </div>
       {page === "matrix" && filter !== "trash" ? (
         <div className="quadrant-grid">
@@ -90,11 +90,7 @@ export default function TasksPage({
               <div className="quadrant-tasks">
                 {visible.filter((t) => t.quadrant === q.id).map(card)}
                 {!visible.some((t) => t.quadrant === q.id) && (
-                  <p className="quadrant-empty">
-                    {q.id === "plan"
-                      ? "为长期成长，留一点时间"
-                      : "把任务拖到这里，或添加新任务"}
-                  </p>
+                  <p className="quadrant-empty">暂无任务</p>
                 )}
               </div>
               <button className="add-line" onClick={() => addTask(q.id)}>
@@ -105,7 +101,7 @@ export default function TasksPage({
           ))}
         </div>
       ) : (
-        <Panel className="panel task-list">
+        <section className="panel task-list" aria-label="任务列表">
           {visible.length ? (
             visible.map((t) =>
               filter === "trash" ? (
@@ -125,10 +121,10 @@ export default function TasksPage({
           ) : (
             <Empty
               icon={Inbox}
-              title={query ? "没有匹配的任务" : "这里暂时没有任务"}
+              title={query ? "没有匹配的任务" : "暂无任务"}
             />
           )}
-        </Panel>
+        </section>
       )}
     </>
   );

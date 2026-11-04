@@ -11,10 +11,9 @@ import {
   Plus,
   Search,
   ArrowUpRight,
-  ChevronRight,
   X,
   Palette,
-  Sparkles,
+  MessageSquare,
   SlidersHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
@@ -264,31 +263,25 @@ export default function App() {
       className={`app-shell ${navigation.collapsed ? "sidebar-collapsed" : ""}`}
     >
       <aside className={`sidebar ${navigation.collapsed ? "collapsed" : ""}`}>
-        <button
-          className="sidebar-toggle"
-          aria-label={navigation.collapsed ? "展开侧栏" : "收起侧栏"}
-          title={navigation.collapsed ? "展开侧栏" : "收起侧栏"}
-          onClick={() => {
-            setGroupMenu(null);
-            call("workspace.configure", {
-              navigation: { ...navigation, collapsed: !navigation.collapsed },
-            });
-          }}
-        >
-          {navigation.collapsed ? (
-            <PanelLeftOpen size={18} />
-          ) : (
-            <PanelLeftClose size={18} />
-          )}
-        </button>
         <div className="brand">
           <BrandMark />
-          <div>
-            <b>
-              医栈通<span>{APP_VERSION}</span>
-            </b>
-            <small>任务 · 课程 · 专注</small>
-          </div>
+          <button
+            className="sidebar-toggle"
+            aria-label={navigation.collapsed ? "展开侧栏" : "收起侧栏"}
+            title={navigation.collapsed ? "展开侧栏" : "收起侧栏"}
+            onClick={() => {
+              setGroupMenu(null);
+              call("workspace.configure", {
+                navigation: { ...navigation, collapsed: !navigation.collapsed },
+              });
+            }}
+          >
+            {navigation.collapsed ? (
+              <PanelLeftOpen size={18} />
+            ) : (
+              <PanelLeftClose size={18} />
+            )}
+          </button>
         </div>
         <button className="new-task" onClick={() => addTask()}>
           <Plus size={18} />
@@ -465,7 +458,6 @@ export default function App() {
       <div className="workspace">
         <header className="topbar">
           <div className="breadcrumb">
-            个人空间 <ChevronRight size={13} />
             <span>
               {page === "account"
                 ? "账号与同步"
@@ -511,8 +503,8 @@ export default function App() {
             aria-label="打开 AI 助手"
             onClick={() => setAssistantOpen(true)}
           >
-            <Sparkles size={16} />
-            <span>Poseidon 助手</span>
+            <MessageSquare size={16} />
+            <span>Poseidon</span>
           </button>
           <button
             className="avatar"

@@ -3,27 +3,28 @@
 }
 .settings-page .settings-layout {
   display: grid;
-  grid-template-columns: minmax(144px, 175px) minmax(0, 780px);
-  gap: clamp(14px, 2.5cqi, 30px);
-  max-width: 1000px;
+  grid-template-columns: minmax(128px, 152px) minmax(0, 720px);
+  gap: clamp(12px, 2cqi, 22px);
+  max-width: 900px;
 }
 .settings-page .settings-tabs {
   flex-direction: column;
   flex-wrap: nowrap;
-  gap: 3px;
-  padding: 5px;
+  gap: 2px;
+  padding: 0 6px 0 0;
   margin: 0;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
+  border: 0;
+  border-right: 1px solid var(--ui-line);
+  border-radius: 0;
+  background: transparent;
 }
 .settings-page .settings-tabs button {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 9px 10px;
-  border-radius: 7px;
-  min-height: 36px;
+  padding: 5px 8px;
+  border-radius: var(--ui-radius);
+  min-height: 30px;
 }
 .settings-page .settings-tabs button:hover,
 .settings-page .settings-tabs button[aria-selected="true"] {
@@ -38,28 +39,40 @@
   display: grid;
   gap: 10px;
 }
+.settings-page .settings-content {
+  container-type: inline-size;
+}
 .settings-page .settings-content .panel {
   margin: 0;
+  padding: 10px 12px;
 }
 .settings-page .settings-focus-form .form-grid {
-  gap: 10px 16px;
-  margin: 8px 0 15px;
+  gap: 8px 12px;
+  margin: 6px 0 10px;
 }
 .settings-page .settings-focus-form .form-grid label {
   min-width: 0;
+  margin: 0;
+  gap: 4px;
 }
 .settings-page .settings-focus-form .form-grid input {
-  width: 100%;
+  width: min(100%, 9em);
   font-variant-numeric: tabular-nums;
 }
+@container (min-width: 600px) {
+  .settings-page .settings-focus-form .form-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
 .settings-group-label {
-  margin-top: 12px;
+  margin-top: 8px;
   color: var(--muted);
   font-size: 12px;
   font-weight: 650;
 }
 .settings-page .settings-focus-form .toggle-row {
   margin: 0;
+  padding-block: 5px;
   border-bottom: 1px solid var(--border);
 }
 .settings-save {
@@ -76,8 +89,8 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  min-height: 38px;
-  padding: 8px 10px;
+  min-height: 32px;
+  padding: 5px 8px;
   text-align: left;
   border: 0;
   border-bottom: 1px solid var(--border);
@@ -103,6 +116,9 @@
   .settings-page .settings-tabs {
     flex-direction: row;
     flex-wrap: wrap;
+    padding: 0 0 4px;
+    border-right: 0;
+    border-bottom: 1px solid var(--ui-line);
   }
   .settings-page .settings-tabs button {
     padding-inline: 8px;
