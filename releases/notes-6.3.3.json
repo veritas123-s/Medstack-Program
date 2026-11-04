@@ -1,0 +1,9 @@
+{
+  "title": "医栈通 V6.3.3",
+  "notes": [
+    "桌面更新提示缩为紧凑操作行，下载时显示进度条和百分比。",
+    "今日概览随窗口高度显示更多待办、日程和通知。"
+  ],
+  "urgent": false,
+  "platforms": ["windows", "android", "macos_x64", "macos_arm64"]
+}

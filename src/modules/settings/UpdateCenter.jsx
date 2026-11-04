@@ -1,85 +1,109 @@
 import React, { useEffect, useState } from "react";
-function InstallUpdate({ updates, call }) {
+import "./update-center.css";
+
+function UpdateActions({ updates, call, children }) {
   const [error, setError] = useState(""),
     [starting, setStarting] = useState(false);
   const install = updates?.installation;
-  if (!updates?.available || !install?.supported) return null;
+  const canInstall = updates?.available && install?.supported;
   const busy =
-    starting ||
-    ["downloading", "verifying", "preparing", "installing"].includes(
-      install.phase,
-    );
+    canInstall &&
+    (starting ||
+      ["downloading", "verifying", "preparing", "installing"].includes(
+        install.phase,
+      ));
+  const downloading = install?.phase === "downloading";
+  const percent =
+    downloading && install.total > 0
+      ? Math.min(100, Math.floor((install.received / install.total) * 100))
+      : undefined;
   const label =
-    install.phase === "downloading"
-      ? `下载中 ${install.total ? Math.floor((install.received / install.total) * 100) + "%" : "…"}`
-      : install.phase === "verifying"
-        ? "校验中…"
-        : install.phase === "preparing"
-          ? "准备安装…"
-          : install.phase === "installing"
-            ? "安装中…"
-            : starting
-              ? "准备中…"
-              : "一键更新";
+    {
+      downloading: percent === undefined ? "下载中" : `下载中 ${percent}%`,
+      verifying: "校验中…",
+      preparing: "准备安装…",
+      installing: "安装中…",
+    }[install?.phase] || "准备中…";
+  const failure = canInstall && (error || install.error);
   return (
-    <div>
-      <button
-        className="button primary"
-        disabled={busy}
-        onClick={async () => {
-          setStarting(true);
-          setError("");
-          try {
-            await call("updates.install");
-          } catch (e) {
-            setError(e.message);
-          } finally {
-            setStarting(false);
-          }
-        }}
-      >
-        {label}
-      </button>
-      {busy && <p role="status">安装时会关闭程序，完成后自动打开。</p>}
-      {(error || install.error) && <p role="alert">{error || install.error}</p>}
+    <div className="release-actions">
+      {busy ? (
+        <div className="release-progress">
+          <span role="status">{label}</span>
+          {downloading && (
+            <progress aria-label="下载进度" max={100} value={percent} />
+          )}
+        </div>
+      ) : (
+        <>
+          {canInstall && (
+            <button
+              className="button primary small"
+              onClick={async () => {
+                setStarting(true);
+                setError("");
+                try {
+                  await call("updates.install");
+                } catch (e) {
+                  setError(e.message);
+                } finally {
+                  setStarting(false);
+                }
+              }}
+            >
+              一键更新
+            </button>
+          )}
+          {children}
+        </>
+      )}
+      {!busy && failure && (
+        <p className="release-error" role="alert">
+          {failure}
+        </p>
+      )}
     </div>
   );
 }
 export function UpdateBanner({ updates, call }) {
   if (!updates?.available || updates.dismissed) return null;
+  const { title, version, urgent, notes, downloads } = updates.release;
   return (
     <section
-      className={`release-banner ${updates.release.urgent ? "urgent" : ""}`}
+      className={`release-banner ${urgent ? "urgent" : ""}`}
       aria-label="版本更新"
     >
-      <div>
+      <div className="release-heading">
         <strong>
-          {updates.release.urgent ? "重要更新 · " : ""}
-          {updates.release.title}
+          {urgent ? "重要更新 · " : ""}
+          {title}
         </strong>
-        <span>V{updates.release.version}</span>
+        {!title.includes(version) && <span>V{version}</span>}
       </div>
+      <UpdateActions updates={updates} call={call}>
+        {downloads[updates.platform] && (
+          <button
+            className="button small"
+            onClick={() => call("updates.download")}
+          >
+            下载安装包
+          </button>
+        )}
+        <button
+          className="button small"
+          onClick={() => call("updates.dismiss")}
+        >
+          稍后提醒
+        </button>
+      </UpdateActions>
       <details>
         <summary>更新内容</summary>
         <ul>
-          {updates.release.notes.map((n) => (
+          {notes.map((n) => (
             <li key={n}>{n}</li>
           ))}
         </ul>
       </details>
-      <div className="settings-actions">
-        <InstallUpdate updates={updates} call={call} />
-        <button
-          className="button"
-          onClick={() => call("updates.download")}
-          disabled={!updates.release.downloads[updates.platform]}
-        >
-          下载新版
-        </button>
-        <button className="button" onClick={() => call("updates.dismiss")}>
-          稍后提醒
-        </button>
-      </div>
     </section>
   );
 }
@@ -125,12 +149,11 @@ export default function UpdateCenter({ updates, call, toast, userId }) {
               <li key={n}>{n}</li>
             ))}
           </ul>
-          <div className="settings-actions">
-            <InstallUpdate updates={updates} call={call} />
+          <UpdateActions updates={updates} call={call}>
             {Object.keys(updates.release.downloads).map((platform) => (
               <button
                 key={platform}
-                className="button"
+                className="button small"
                 onClick={() => call("updates.download", { platform })}
               >
                 {
@@ -143,7 +166,7 @@ export default function UpdateCenter({ updates, call, toast, userId }) {
                 }
               </button>
             ))}
-          </div>
+          </UpdateActions>
         </>
       )}
       <label className="toggle-row">

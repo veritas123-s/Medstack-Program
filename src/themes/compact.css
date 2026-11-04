@@ -297,12 +297,6 @@ textarea,
   padding-top: 10px;
   margin-top: 10px;
 }
-.release-banner {
-  padding: 10px 14px;
-  gap: 6px;
-  margin-bottom: 12px;
-  border-radius: 12px;
-}
 .quadrant-grid,
 .dashboard-grid {
   gap: 12px;

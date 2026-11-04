@@ -222,28 +222,3 @@ img.brand-symbol {
 .auth-brand h1 small {
   font-size: 0.55em;
 }
-
-.release-banner {
-  padding: 18px 22px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: var(--surface);
-  margin: 0 0 18px;
-  display: grid;
-  gap: 12px;
-}
-.release-banner > div:first-child {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  justify-content: space-between;
-}
-.release-banner.urgent {
-  border-color: var(--accent);
-}
-.release-banner details {
-  margin: 0;
-}
-.release-banner li {
-  margin: 6px 0;
-}

@@ -1,0 +1,66 @@
+.release-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 8px 12px;
+  margin: 0 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.release-banner.urgent {
+  border-color: var(--accent);
+}
+.release-heading,
+.release-actions,
+.release-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.release-heading strong {
+  overflow-wrap: anywhere;
+}
+.release-heading span,
+.release-banner details,
+.release-progress {
+  color: var(--muted);
+  font-size: 0.875em;
+}
+.release-banner > .release-actions {
+  margin-inline-start: auto;
+}
+.release-actions .button {
+  width: auto;
+  white-space: nowrap;
+}
+.release-banner details {
+  margin: 0;
+}
+.release-banner details[open] {
+  flex: 1 0 100%;
+}
+.release-banner summary {
+  cursor: pointer;
+}
+.release-banner ul {
+  margin: 6px 0 2px;
+  padding-inline-start: 18px;
+}
+.release-progress {
+  font-variant-numeric: tabular-nums;
+}
+.release-progress progress {
+  width: 6rem;
+  max-width: 100%;
+  height: 7px;
+  accent-color: var(--accent);
+}
+.release-error {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.875em;
+}
