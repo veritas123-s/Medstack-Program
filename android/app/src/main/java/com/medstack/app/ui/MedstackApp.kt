@@ -7,9 +7,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -54,6 +53,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material3.FilterChip
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -210,12 +210,18 @@ private fun MobileHeader(ui: MedstackUiState, page: MobilePage, repository: Meds
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ChoiceChips(options: List<Pair<String, String>>, selected: String, select: (String) -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        options.forEach { (id, label) ->
-            FilterChip(selected = selected == id, onClick = { select(id) }, label = { Text(label) })
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val columns = (maxWidth / (88.dp * LocalDensity.current.fontScale)).toInt().coerceAtLeast(1)
+        Column {
+            for (row in options.chunked(columns)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { (id, label) ->
+                        FilterChip(selected = selected == id, onClick = { select(id) }, label = { Text(label) })
+                    }
+                }
+            }
         }
     }
 }
