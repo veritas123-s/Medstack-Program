@@ -68,13 +68,17 @@ class MobileWorkspaceTest {
         navigate("任务")
         compose.onNodeWithText("添加任务").performClick()
         compose.onNodeWithText("任务名称").performTextInput("合成离线任务")
-        compose.onNodeWithText("截止日期 YYYY-MM-DD").performTextInput(LocalDate.now().plusDays(2).toString())
+        val taskDate = LocalDate.now().plusDays(2).toString()
+        compose.onNodeWithTag("taskDueDate").performScrollTo().performTextReplacement(taskDate)
         compose.onNodeWithText("保存").performClick()
         compose.waitUntil(6000) { repository.state.tasks.any { it.title == "合成离线任务" } }
+        compose.runOnIdle { assertEquals(taskDate, repository.state.tasks.single().due) }
         compose.onNodeWithText("合成离线任务").assertIsDisplayed()
         compose.onNodeWithText("编辑").performClick()
-        compose.onNodeWithText("截止时间 HH:MM").performTextInput("14:30")
-        compose.onNodeWithText("立即").performClick()
+        compose.onNodeWithText("编辑任务").assertIsDisplayed()
+        screenshot("task-editor")
+        compose.onNodeWithTag("taskDueTime").performScrollTo().assertIsEnabled().performTextReplacement("14:30")
+        compose.onNodeWithText("立即").performScrollTo().performClick()
         compose.onNodeWithText("保存").performClick()
         compose.runOnIdle {
             assertEquals("14:30", repository.state.tasks.single().dueTime)

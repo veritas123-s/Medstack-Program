@@ -55,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -319,9 +320,11 @@ private fun TaskDialog(task: MobileTask?, onDismiss: () -> Unit, onSave: (String
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(title, { title = it }, label = { Text("任务名称") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(due, { due = it.take(10) }, label = { Text("截止日期 YYYY-MM-DD") }, modifier = Modifier.fillMaxWidth())
-                if (due.isNotBlank()) OutlinedTextField(time, { time = it.take(5) },
-                    label = { Text("截止时间 HH:MM") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(due, { due = it.take(10) }, label = { Text("截止日期 YYYY-MM-DD") },
+                    modifier = Modifier.fillMaxWidth().testTag("taskDueDate"), singleLine = true)
+                OutlinedTextField(time, { time = it.take(5) }, label = { Text("截止时间 HH:MM") },
+                    modifier = Modifier.fillMaxWidth().testTag("taskDueTime"),
+                    enabled = due.isNotBlank(), singleLine = true)
                 ChoiceChips(listOf("do" to "立即", "plan" to "规划", "delegate" to "处理", "later" to "以后"), quadrant) { quadrant = it }
             }
         },
