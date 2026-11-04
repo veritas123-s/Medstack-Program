@@ -195,6 +195,12 @@ async function handle(action, p = {}) {
   }
   if (action.startsWith("account.")) return accounts.execute(action, p);
   if (!personalReady) throw Error("正在打开账号空间，请稍候");
+  if (action === "dashboard.weather") {
+    if (testMode && process.env.VERITAS_TEST_WEATHER !== "1")
+      return { current: null, tomorrow: null, stale: false };
+    const { dashboardWeather } = await import("./dashboard-weather.mjs");
+    return dashboardWeather(p.location);
+  }
   const result = await commandRouter.execute(action, p);
   requireAccount(accounts, action);
   if (result !== undefined) return result;

@@ -197,18 +197,6 @@ textarea,
 .home-primary .calendar-panel {
   margin: 0;
 }
-.home-extras {
-  margin-top: 12px;
-}
-.home-extras > summary {
-  cursor: pointer;
-  color: var(--muted);
-  padding: 8px 0;
-  font-size: 13px;
-}
-.home-extras[open] > .panel {
-  margin-top: 10px;
-}
 .task-card {
   padding: 10px 8px;
 }

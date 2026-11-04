@@ -100,25 +100,6 @@
 .workspace {
   position: relative;
 }
-.dashboard-heading {
-  padding: 26px 30px;
-  border-radius: 22px;
-  background-color: var(--surface);
-  background-image:
-    linear-gradient(90deg, var(--surface) 22%, transparent 100%),
-    var(--theme-art);
-  background-size: cover;
-  background-position: center right;
-  min-height: 150px;
-  border: 1px solid var(--border);
-}
-.dashboard-heading > div {
-  position: relative;
-  max-width: 70%;
-}
-.dashboard-heading > button {
-  position: relative;
-}
 .theme-preview.has-art {
   background-image:
     linear-gradient(90deg, var(--preview-bg) 5%, transparent),

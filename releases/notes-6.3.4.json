@@ -1,0 +1,9 @@
+{
+  "title": "医栈通 V6.3.4",
+  "notes": [
+    "桌面今日概览分列今天和明天的日程、待办，优先显示当日重点。",
+    "顶部显示时间、可切换地区的天气和星球插画。"
+  ],
+  "urgent": false,
+  "platforms": ["windows", "android", "macos_x64", "macos_arm64"]
+}

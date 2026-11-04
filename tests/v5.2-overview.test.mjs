@@ -155,3 +155,73 @@ test("取消快讯后忽略历史多来源公开资讯", () => {
   const rows = overview(s, now).notices;
   assert.equal(rows.length, 0);
 });
+
+test("首页按北京时间拆分今天和明天，优先展示当天的临近安排", () => {
+  const s = initialState();
+  s.tasks = [
+    taskInput({
+      title: "今天交材料",
+      quadrant: "plan",
+      due: "2026-10-02",
+      dueTime: "17:00",
+    }),
+    taskInput({ title: "明天复习", quadrant: "do", due: "2026-10-03" }),
+    taskInput({ title: "往日任务", quadrant: "do", due: "2026-10-01" }),
+    taskInput({ title: "未排期", quadrant: "do" }),
+  ];
+  s.events = [
+    {
+      id: "past",
+      title: "已结束",
+      start: "2026-10-02T09:00:00+08:00",
+      end: "2026-10-02T10:00:00+08:00",
+    },
+    {
+      id: "soon",
+      title: "即将开始",
+      start: "2026-10-02T12:30:00+08:00",
+      end: "2026-10-02T13:30:00+08:00",
+    },
+    {
+      id: "tomorrow",
+      title: "明天的讨论",
+      start: "2026-10-03T09:00:00+08:00",
+      end: "2026-10-03T10:00:00+08:00",
+    },
+  ];
+  s.learning = {
+    items: [
+      {
+        id: "tomorrow-work",
+        kind: "assignment",
+        title: "明天交作业",
+        deadline: Date.parse("2026-10-03T10:00:00+08:00"),
+      },
+      {
+        id: "unknown-work",
+        kind: "assignment",
+        title: "截止未知",
+        updatedAt: now,
+      },
+    ],
+  };
+  const v = overview(s, now);
+  assert.equal(v.focus.title, "即将开始");
+  assert.deepEqual(
+    v.deadlines.map((x) => x.title),
+    ["今天交材料"],
+  );
+  assert.deepEqual(
+    v.tomorrow.deadlines.map((x) => x.title),
+    ["明天交作业", "明天复习"],
+  );
+  assert.deepEqual(
+    v.tomorrow.schedule.map((x) => x.title),
+    ["明天的讨论"],
+  );
+  assert.deepEqual(
+    v.overdueEntries.map((x) => x.title),
+    ["往日任务"],
+  );
+  assert.equal(overview(s, now + 2 * 3600000).focus.title, "今天交材料");
+});

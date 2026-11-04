@@ -1,194 +1,350 @@
-import React from "react";
-import Panel from "../../shared/Panel.jsx";
-import { ChevronRight, CalendarDays, CheckSquare2, Bell } from "lucide-react";
-import { duration } from "../../components.jsx";
+import React, { useEffect, useState } from "react";
+import { ArrowUpRight, CalendarDays, CheckSquare2, MapPin } from "lucide-react";
 import { WidgetBoard } from "../../platform/WidgetHost.jsx";
+import {
+  DEFAULT_WEATHER_LOCATION,
+  WEATHER_LOCATIONS,
+} from "../../domain/weather.mjs";
 import { overview } from "./overview.mjs";
-const Row = ({ title, detail, tag, onClick }) => (
-  <button className="overview-row" onClick={onClick} title={title}>
-    <span>
-      <b>{title}</b>
-      {detail && <small>{detail}</small>}
-    </span>
-    {tag && <em>{tag}</em>}
-  </button>
-);
+import orbit from "./orbit.svg";
+import "./dashboard.css";
+
+const storageKey = "medstack.weather.location";
+const clock = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Shanghai",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+const date = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Shanghai",
+  month: "long",
+  day: "numeric",
+  weekday: "long",
+});
+
+function weatherLabel(code) {
+  if (code.includes("thunder")) return "雷雨";
+  if (code.includes("sleet")) return "雨夹雪";
+  if (code.includes("snow")) return "雪";
+  if (code.includes("rain")) return "雨";
+  if (code.includes("fog")) return "雾";
+  if (code.startsWith("clearsky")) return "晴";
+  if (code.startsWith("fair") || code.startsWith("partlycloudy")) return "多云";
+  return code === "cloudy" ? "阴" : "";
+}
+
+function useWeather(location) {
+  const [result, setResult] = useState(null);
+  useEffect(() => {
+    let active = true;
+    const refresh = () => {
+      window.veritas.call("dashboard.weather", { location }).then(
+        (data) => {
+          if (active) setResult({ location, ...data });
+        },
+        () => {
+          if (active) setResult({ location, current: null });
+        },
+      );
+    };
+    refresh();
+    const timer = setInterval(refresh, 15 * 60000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [location]);
+  return result?.location === location ? result : null;
+}
+
+function Rows({ items, limit, render, empty }) {
+  if (!items.length) return <p className="day-empty">{empty}</p>;
+  return (
+    <>
+      {items.slice(0, limit).map(render)}
+      {items.length > limit && (
+        <details className="day-more">
+          <summary>其余 {items.length - limit} 项</summary>
+          {items.slice(limit).map(render)}
+        </details>
+      )}
+    </>
+  );
+}
+
+function DayColumn({
+  title,
+  day,
+  schedule,
+  past,
+  deadlines,
+  coverage,
+  forecast,
+  limit,
+  render,
+  setPage,
+}) {
+  return (
+    <section
+      className={`day-column ${past ? "day-current" : "day-next"}`}
+      aria-label={title}
+    >
+      <header>
+        <div>
+          <h2>{title}</h2>
+          {!past && (
+            <time dateTime={day}>
+              {Number(day.slice(5, 7))}月{Number(day.slice(8))}日
+            </time>
+          )}
+        </div>
+        {forecast && (
+          <span className="day-forecast">
+            {weatherLabel(forecast.code)} {forecast.temperature}°
+          </span>
+        )}
+      </header>
+      <div className="day-block">
+        <div className="day-block-heading">
+          <h3>
+            <CalendarDays size={15} />
+            日程
+          </h3>
+          {coverage.status !== "fresh" && (
+            <span>
+              {coverage.status === "missing" ? "课表未同步" : "课表待刷新"}
+            </span>
+          )}
+          <button
+            type="button"
+            className="day-link"
+            onClick={() => setPage("calendar")}
+            aria-label={`${title} · 打开日历`}
+          >
+            <ArrowUpRight size={15} />
+          </button>
+        </div>
+        {past?.length && !schedule.length ? null : (
+          <Rows
+            items={schedule}
+            limit={limit}
+            render={render}
+            empty="暂无日程"
+          />
+        )}
+        {!!past?.length && (
+          <details className="day-more">
+            <summary>已结束 {past.length} 项</summary>
+            {past.map(render)}
+          </details>
+        )}
+      </div>
+      <div className="day-block">
+        <div className="day-block-heading">
+          <h3>
+            <CheckSquare2 size={15} />
+            待办
+          </h3>
+          <button
+            type="button"
+            className="day-link"
+            onClick={() => setPage("tasks")}
+            aria-label={`${title} · 打开任务清单`}
+          >
+            <ArrowUpRight size={15} />
+          </button>
+        </div>
+        <Rows
+          items={deadlines}
+          limit={limit}
+          render={render}
+          empty="暂无待办"
+        />
+      </div>
+    </section>
+  );
+}
+
 export default function DashboardPage({
   state,
   call,
-  todayMs,
   setPage,
   setFilter,
   setProject,
   widgetActions,
 }) {
-  const model = overview(state),
-    now = new Date();
-  const taskPage = () => {
-    setPage("tasks");
-    setFilter("active");
-    setProject("全部清单");
+  const [location, setLocation] = useState(() => {
+    const saved = localStorage.getItem(storageKey);
+    return Object.hasOwn(WEATHER_LOCATIONS, saved)
+      ? saved
+      : DEFAULT_WEATHER_LOCATION;
+  });
+  const weather = useWeather(location);
+  const now = Date.now();
+  const model = overview(state, now);
+  const { focus } = model;
+  const tasks = new Map(model.tasks.map((task) => [task.id, task]));
+  const open = (item) => {
+    const task = item.kind === "task" && tasks.get(item.taskId);
+    if (task && widgetActions?.editTask) widgetActions.editTask(task);
+    else if (item.kind === "task") {
+      setFilter("active");
+      setProject("全部清单");
+      setPage("tasks");
+    } else if (item.kind === "assignment" || item.kind === "notice")
+      setPage("learning");
+    else setPage("calendar");
   };
-  const goal = state.settings.dailyGoal * 60000,
-    progress = goal ? Math.min(100, Math.round((todayMs / goal) * 100)) : 0;
-  const heading = (title, route, Icon) => (
-    <div className="panel-heading">
-      <h2>
-        <Icon size={16} />
-        {title}
-      </h2>
-      <button
-        className="icon-button"
-        aria-label={"查看" + title}
-        onClick={() => setPage(route)}
-      >
-        <ChevronRight size={16} />
-      </button>
-    </div>
+  const label = (item) =>
+    item.clock ||
+    (item.kind === "notice"
+      ? ""
+      : item.kind === "task" && !tasks.get(item.taskId)?.dueTime
+        ? "当天"
+        : clock.format(item.time));
+  const render = (item) => (
+    <button
+      className="day-row"
+      key={item.id}
+      type="button"
+      onClick={() => open(item)}
+      title={item.title}
+    >
+      <span className="day-time">{label(item)}</span>
+      <span className="day-row-text">
+        <b>{item.title}</b>
+        {(item.detail || item.subtitle) && (
+          <small>{item.detail || item.subtitle}</small>
+        )}
+      </span>
+    </button>
   );
+  const focusLabel = focus?.clock
+    ? !focus.allDay && focus.start <= now
+      ? "进行中"
+      : label(focus)
+    : focus && (focus.time < now ? "已逾期" : `${label(focus)}截止`);
+  const current = weather?.current;
   return (
-    <>
-      <div className="page-heading dashboard-heading">
-        <h1>今天的安排</h1>
-        <button className="button" onClick={() => setPage("workbench")}>
-          卡片布局
+    <div className="today-dashboard">
+      <h1>今天的安排</h1>
+      <section className="today-hero" aria-label="时间、天气与今日重点">
+        <div className="today-hero-content">
+          <div className="today-topline">
+            <div className="today-clock">
+              <time>{clock.format(now)}</time>
+              <span>{date.format(now)}</span>
+            </div>
+            <div className="today-weather" aria-label="天气预报">
+              <label>
+                <MapPin size={14} />
+                <select
+                  aria-label="天气位置"
+                  value={location}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    localStorage.setItem(storageKey, next);
+                    setLocation(next);
+                  }}
+                >
+                  {Object.entries(WEATHER_LOCATIONS).map(([id, place]) => (
+                    <option key={id} value={id}>
+                      {place.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="today-weather-reading">
+                {current ? (
+                  <>
+                    <strong>{current.temperature}°</strong>
+                    <span>
+                      {weatherLabel(current.code)}
+                      {weather.stale ? " · 缓存" : ""}
+                    </span>
+                  </>
+                ) : (
+                  <span>{weather ? "天气暂不可用" : "读取天气…"}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="today-spotlight">
+            <h2>今日重点</h2>
+            {focus ? (
+              <button
+                type="button"
+                onClick={() => open(focus)}
+                title={focus.title}
+              >
+                <span>{focusLabel}</span>
+                <strong>{focus.title}</strong>
+                <ArrowUpRight size={15} />
+              </button>
+            ) : (
+              <p>今天没有待处理事项</p>
+            )}
+          </div>
+        </div>
+        <div className="today-art">
+          <img src={orbit} alt="" />
+        </div>
+      </section>
+      <div className="today-days">
+        <DayColumn
+          title="今天"
+          day={model.day}
+          schedule={model.schedule.filter((e) => e.allDay || e.end > now)}
+          past={model.schedule.filter((e) => !e.allDay && e.end <= now)}
+          deadlines={model.deadlines}
+          coverage={model.coverage}
+          limit={4}
+          render={render}
+          setPage={setPage}
+        />
+        <DayColumn
+          title="明天"
+          {...model.tomorrow}
+          forecast={weather?.tomorrow}
+          limit={2}
+          render={render}
+          setPage={setPage}
+        />
+      </div>
+      <div className="today-extras">
+        {!!model.overdueEntries.length && (
+          <details>
+            <summary>往日逾期 {model.overdueEntries.length}</summary>
+            <Rows items={model.overdueEntries} limit={5} render={render} />
+          </details>
+        )}
+        <details>
+          <summary>
+            超星通知{model.notices.length ? ` ${model.notices.length}` : ""}
+          </summary>
+          <Rows
+            items={model.notices}
+            limit={5}
+            render={render}
+            empty="暂无新通知"
+          />
+        </details>
+        <details>
+          <summary>小组件</summary>
+          <WidgetBoard state={state} call={call} actions={widgetActions} />
+        </details>
+        <button
+          type="button"
+          className="today-attribution"
+          onClick={() =>
+            call("link.open", { url: "https://api.met.no/doc/License" })
+          }
+          title="MET Norway 预报，CC BY 4.0，已转为中文并取整"
+        >
+          天气 · MET Norway
         </button>
       </div>
-      <div className="overview-summary-grid">
-        <section
-          className="overview-summary overview-clock"
-          aria-label="当前时间"
-        >
-          <strong className="overview-metric">
-            {now.toLocaleTimeString("zh-CN", {
-              timeZone: "Asia/Shanghai",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </strong>
-          <span>
-            {now.toLocaleDateString("zh-CN", {
-              timeZone: "Asia/Shanghai",
-              month: "long",
-              day: "numeric",
-              weekday: "long",
-            })}
-          </span>
-        </section>
-        <section
-          className="overview-summary overview-focus"
-          aria-label="今日专注"
-        >
-          <span>今日专注</span>
-          <strong className="overview-metric">{duration(todayMs)}</strong>
-          <div
-            className="overview-progress"
-            role="progressbar"
-            aria-label="今日专注目标完成度"
-            aria-valuenow={progress}
-          >
-            <i style={{ width: progress + "%" }} />
-          </div>
-          <small>
-            目标 {state.settings.dailyGoal} 分钟 · {progress}%
-          </small>
-        </section>
-        <section
-          className="overview-summary overview-deadlines"
-          aria-label="今日截止"
-        >
-          <div>
-            <span>今日截止</span>
-            <strong className="overview-metric">
-              {model.deadlines.length}
-            </strong>
-          </div>
-          <strong className="overview-deadline-title">
-            {model.deadlines[0]?.title || "今天没有截止事项"}
-          </strong>
-          <small>
-            {model.deadlines.length > 1
-              ? "另有 " + (model.deadlines.length - 1) + " 项 · "
-              : ""}
-            {model.overdue
-              ? model.overdue + " 项已逾期"
-              : model.tasks.length + " 项待办"}
-          </small>
-        </section>
-      </div>
-      <div className="overview-information-grid">
-        <Panel className="panel overview-card overview-tasks" title="待办任务">
-          {heading("待办任务", "tasks", CheckSquare2)}
-          <div className="overview-card-list">
-            {model.tasks.map((t) => (
-              <Row
-                key={t.id}
-                title={t.title}
-                detail={t.project || "收集箱"}
-                tag={t.due ? t.due.slice(5) : ""}
-                onClick={() =>
-                  widgetActions?.editTask
-                    ? widgetActions.editTask(t)
-                    : taskPage()
-                }
-              />
-            ))}
-            {!model.tasks.length && <p className="overview-empty">暂无待办</p>}
-          </div>
-        </Panel>
-        <div className="overview-side">
-          <Panel
-            className="panel overview-card overview-schedule"
-            title="今日日程"
-          >
-            {heading("今日日程", "calendar", CalendarDays)}
-            {model.coverage.status !== "fresh" && (
-              <span className="overview-status">
-                {model.coverage.status === "missing"
-                  ? "课表未同步"
-                  : "课表需更新"}
-              </span>
-            )}
-            <div className="overview-card-list">
-              {model.schedule.map((e) => (
-                <Row
-                  key={e.id}
-                  title={e.title}
-                  detail={e.detail}
-                  tag={e.clock}
-                  onClick={() => setPage("calendar")}
-                />
-              ))}
-              {!model.schedule.length && (
-                <p className="overview-empty">暂无已保存安排</p>
-              )}
-            </div>
-          </Panel>
-          <Panel
-            className="panel overview-card overview-notices"
-            title="超星通知"
-          >
-            {heading("超星通知", "learning", Bell)}
-            <div className="overview-card-list">
-              {model.notices.map((e) => (
-                <Row
-                  key={e.id}
-                  title={e.title}
-                  detail={e.subtitle}
-                  onClick={() => setPage("learning")}
-                />
-              ))}
-              {!model.notices.length && (
-                <p className="overview-empty">暂无新消息</p>
-              )}
-            </div>
-          </Panel>
-        </div>
-      </div>
-      <details className="home-extras">
-        <summary>小组件</summary>
-        <WidgetBoard state={state} call={call} actions={widgetActions} />
-      </details>
-    </>
+    </div>
   );
 }

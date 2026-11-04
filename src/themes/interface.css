@@ -276,66 +276,6 @@
   color: var(--muted);
 }
 
-/* Dashboard metrics share a surface. Accent is reserved for meaningful data. */
-:root[data-theme] .overview-summary-grid {
-  gap: 0;
-  background: var(--surface);
-  border: 1px solid var(--ui-line);
-  border-radius: 8px;
-  overflow: hidden;
-}
-:root[data-theme] .overview-summary {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-}
-:root[data-theme] .overview-summary + .overview-summary {
-  border-left: 1px solid var(--ui-line);
-}
-:root[data-theme] .overview-clock {
-  background: transparent;
-  color: var(--text);
-  align-items: flex-start;
-  text-align: left;
-  position: relative;
-}
-:root[data-theme] .overview-clock::after {
-  content: "";
-  position: absolute;
-  inset: 9px 6px 9px auto;
-  width: min(30%, 56px);
-  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 28%, transparent) 1px, transparent 1.25px) 0 0 / 8px 8px;
-  mask-image: linear-gradient(90deg, transparent, #000);
-  pointer-events: none;
-}
-:root[data-theme] .overview-clock > svg {
-  display: none;
-}
-:root[data-theme] .overview-clock > span {
-  color: var(--muted);
-  font-size: 12px;
-}
-:root[data-theme] .overview-metric {
-  font-weight: 500;
-  letter-spacing: -0.025em;
-}
-:root[data-theme] .overview-information-grid .overview-card {
-  border-radius: 8px;
-  box-shadow: none;
-}
-:root[data-theme] .overview-card h2 svg {
-  color: var(--muted);
-  width: 16px;
-  height: 16px;
-  stroke-width: 1.65;
-}
-:root[data-theme] .overview-row {
-  border-bottom-color: var(--ui-line);
-}
-:root[data-theme] .page-today .dashboard-heading {
-  margin-bottom: 8px;
-}
-
 :root[data-theme] .page-tasks .task-toolbar {
   gap: 6px 10px;
   margin-bottom: 8px;
@@ -422,12 +362,6 @@
   ):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-@container workspace (max-width: 540px) {
-  :root[data-theme] .overview-deadlines {
-    border-left: 0;
-    border-top: 1px solid var(--ui-line);
-  }
 }
 @container workspace (max-width: 500px) {
   :root[data-theme] .page-campus-news .recent-news-card details {
@@ -522,10 +456,10 @@
   :is(.calendar-grid, .calendar-toolbar, .focus-card, .assistant-panel) {
   border-color: var(--ui-line);
 }
-:root[data-theme] :is(.task-row, .hub-project-row, .overview-row):hover {
+:root[data-theme] :is(.task-row, .hub-project-row):hover {
   background-color: var(--ui-hover);
 }
-:root[data-theme] :is(.focus-time, .overview-metric, .stat strong) {
+:root[data-theme] :is(.focus-time, .stat strong) {
   font-variant-numeric: tabular-nums;
 }
 :root[data-theme] :is(.modal, .assistant-panel, .page-viewport) {
