@@ -162,7 +162,11 @@ try {
     await tour.getByRole("button", { name: "跳过", exact: true }).click();
   await page.getByRole("button", { name: "设置与数据", exact: true }).click();
   await page.getByRole("tab", { name: "关于", exact: true }).click();
-  await page.getByText("由 Medtrix 团队制作", { exact: true }).waitFor();
+  await page
+    .getByText("开发者 · 交叉学科创协Medtrix工作室", { exact: true })
+    .waitFor();
+  assert.ok(await page.getByRole("img", { name: "交叉学科创协", exact: true })
+    .evaluate((element) => element.naturalWidth > 0));
   assert.equal(await page.getByText(/MySHSMU|酱紫办/).count(), 0);
   await page.screenshot({ path: path.join(output, `about-${arch}.png`) });
   checks.push("About page retains Medtrix and removes obsolete campus attribution");
