@@ -3,6 +3,8 @@ package com.medstack.app.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
@@ -31,15 +33,47 @@ fun UpdateBanner(status:UpdateStatus,onDismiss:()->Unit) {
 fun UpdatePanel(status:UpdateStatus,check:()->Unit,service:MobileUpdates,repository:MedstackRepository) {
     val scope=rememberCoroutineScope();val uid=repository.currentUserId();val uri=LocalUriHandler.current
     var email by remember(uid){mutableStateOf<Boolean?>(null)};var error by remember(uid){mutableStateOf("")};var saving by remember{mutableStateOf(false)}
+    val notice = status.release
+    var showNotes by rememberSaveable(notice?.version) { mutableStateOf(false) }
     LaunchedEffect(uid){if(uid.isNotBlank())try{val value=withContext(Dispatchers.IO){service.emailPreferences()};if(repository.currentUserId()==uid)email=value}catch(_:Exception){error="服务器尚未开通邮件订阅"}}
-    Card(Modifier.fillMaxWidth()){
-        Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
-            Text("版本更新",style=MaterialTheme.typography.titleLarge);Text("当前版本 V${BuildConfig.VERSION_NAME}")
-            OutlinedButton(check){Text("检查更新")}
-            if(status.message.isNotBlank())Text(status.message)
-            status.release?.let{notice->Text("最新公告 V${notice.version}");notice.notes.forEach{Text("• $it")};TextButton({uri.openUri(notice.url)}){Text("下载安装包")}}
-            Row {Text("接收版本更新邮件",Modifier.weight(1f));Switch(checked=email==true,enabled=email!=null&&!saving,onCheckedChange={enabled->saving=true;scope.launch{try{val value=withContext(Dispatchers.IO){service.emailPreferences(enabled)};if(repository.currentUserId()==uid)email=value}catch(_:Exception){error="订阅未保存，请稍后重试"}finally{saving=false}}})}
-            if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("版本更新", style = MaterialTheme.typography.titleMedium)
+                    Text("V${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                TextButton(check) { Text("检查更新") }
+            }
+            if (status.message.isNotBlank()) Text(status.message, style = MaterialTheme.typography.labelMedium)
+            if (notice != null) {
+                TextButton({ showNotes = !showNotes }) {
+                    Text(if (showNotes) "收起公告" else "查看公告 V${notice.version}")
+                }
+                if (showNotes) {
+                    notice.notes.forEach { Text(it, Modifier.padding(vertical = 3.dp), style = MaterialTheme.typography.bodyMedium) }
+                    TextButton({ uri.openUri(notice.url) }) { Text("下载安装包") }
+                }
+            }
+            HorizontalDivider()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("接收更新邮件", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                Switch(checked = email == true, enabled = email != null && !saving, onCheckedChange = { enabled ->
+                    saving = true
+                    scope.launch {
+                        try {
+                            val value = withContext(Dispatchers.IO) { service.emailPreferences(enabled) }
+                            if (repository.currentUserId() == uid) { email = value; error = "" }
+                        } catch (_: Exception) {
+                            error = "订阅未保存，请稍后重试"
+                        } finally {
+                            saving = false
+                        }
+                    }
+                })
+            }
+            if (error.isNotBlank()) Text(error, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
         }
     }
 }

@@ -131,6 +131,9 @@ class MobileWorkspaceTest {
         screenshot("assistant")
         compose.onNodeWithText("返回更多").performClick()
         navigate("账号与设置")
+        compose.onNodeWithText("检查更新").assertIsDisplayed()
+        compose.onNodeWithText("立即同步").assertIsDisplayed()
+        compose.onNodeWithText("退出账号").assertIsDisplayed()
         screenshot("settings")
         compose.runOnIdle {
             val cached = JSONObject(secure.get("document:$uid")!!)

@@ -231,24 +231,24 @@ private fun ChoiceChips(options: List<Pair<String, String>>, selected: String, s
 
 @Composable
 private fun TodayScreen(ui: MedstackUiState, repository: MedstackRepository) {
-    val today = LocalDate.now().toString()
+    val today = LocalDate.now(ZoneId.of("Asia/Shanghai")).toString()
     val due = ui.tasks.filter { !it.completed && it.due.isNotBlank() && it.due <= today }
     val courses = ui.schedule.filter { it.start.startsWith(today) }
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), shape = RoundedCornerShape(22.dp)) {
                 Column(Modifier.padding(20.dp)) {
-                    Text(LocalDate.now().toString(), style = MaterialTheme.typography.labelLarge)
+                    Text(today, style = MaterialTheme.typography.labelLarge)
                     Text(if (due.isEmpty()) "今天没有临近任务" else "${due.size} 项任务需要处理", style = MaterialTheme.typography.titleLarge)
-                    Text("${courses.size} 节课程 · ${ui.tasks.count { !it.completed }} 项待办", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${courses.size} 项安排 · ${ui.tasks.count { !it.completed }} 项待办", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
         item { SectionTitle("当日任务") }
-        if (due.isEmpty()) item { EmptyCard("任务完成后，可到专注页记录投入时间。") }
+        if (due.isEmpty()) item { EmptyCard("暂无到期任务") }
         items(due, key = { it.id }) { TaskRow(it, repository) }
         item { SectionTitle("今日课程与日程") }
-        if (courses.isEmpty()) item { EmptyCard("暂无同步到今天的课程或日程。") }
+        if (courses.isEmpty()) item { EmptyCard("暂无安排") }
         items(courses) { item -> ScheduleCard(item.title, item.start, item.end, item.location, item.kind) }
     }
 }
@@ -439,8 +439,9 @@ private fun ScheduleCard(title: String, start: String, end: String, location: St
         startDay == endDay -> listOf(startDay, listOf(startClock, endClock).filter(String::isNotBlank).joinToString("–")).filter(String::isNotBlank).joinToString(" · ")
         else -> "$startDay $startClock – $endDay $endClock"
     }
-    Card(shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(17.dp)) {
+    Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.padding(14.dp)) {
             Text(kind, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
             Text(title, style = MaterialTheme.typography.titleMedium)
             if (timing.isNotBlank()) Text(timing, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -533,13 +534,22 @@ private fun FocusScreen(ui: MedstackUiState, repository: MedstackRepository) {
 
 @Composable
 private fun ConnectionScreen(ui: MedstackUiState, repository: MedstackRepository, updateStatus:com.medstack.app.data.UpdateStatus, checkUpdates:()->Unit, updates:MobileUpdates) {
-    LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
-            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                Column(Modifier.padding(20.dp)) {
-                    Text(ui.nickname.ifBlank { "医栈通 用户" }, style = MaterialTheme.typography.titleLarge)
-                    Text(ui.email)
-                    Text("云端版本 ${ui.remoteVersion} · ${if (ui.dirty) "手机有待同步更改" else "本地已对齐"}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                    Text(ui.nickname.ifBlank { "医栈通用户" }, style = MaterialTheme.typography.titleMedium)
+                    Text(ui.email, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(when {
+                            ui.conflictVersion != null -> "同步冲突"
+                            ui.dirty -> "有更改待同步"
+                            ui.syncPhase == "offline" -> "离线"
+                            ui.syncPhase == "synced" -> "已同步"
+                            else -> "云端同步"
+                        }, Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        TextButton(repository::syncNow, enabled = ui.syncPhase != "syncing") { Text("立即同步") }
+                    }
                 }
             }
         }
@@ -554,8 +564,7 @@ private fun ConnectionScreen(ui: MedstackUiState, repository: MedstackRepository
             }
         }
         item {UpdatePanel(updateStatus,checkUpdates,updates,repository)}
-        item { Button(repository::syncNow, modifier = Modifier.fillMaxWidth(), enabled = ui.syncPhase != "syncing") { Text("立即同步") } }
-        item { OutlinedButton(repository::logout, modifier = Modifier.fillMaxWidth()) { Text("退出账号") } }
+        item { TextButton(repository::logout) { Text("退出账号", color = MaterialTheme.colorScheme.error) } }
     }
 }
 
