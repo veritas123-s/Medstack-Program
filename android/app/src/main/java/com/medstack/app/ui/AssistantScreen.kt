@@ -31,7 +31,6 @@ fun AssistantScreen(repository: MedstackRepository) {
     var text by remember(uid) { mutableStateOf("") }
     var includeContext by remember(uid) { mutableStateOf(false) }
     LazyColumn(contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
-        item { Text("Poseidon",style=MaterialTheme.typography.headlineMedium); Text("Pi Agent",style=MaterialTheme.typography.labelMedium) }
         item { TextButton({ configuring=!configuring },enabled=!busy) { Text(if(configuring) "收起连接设置" else "连接设置") } }
         if(configuring) item {
             Card { Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {

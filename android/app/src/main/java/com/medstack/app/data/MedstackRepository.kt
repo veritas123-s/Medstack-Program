@@ -3,6 +3,7 @@ package com.medstack.app.data
 import android.content.Context
 import com.medstack.app.security.SecureStore
 import java.time.LocalDate
+import java.time.LocalTime
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -333,7 +334,7 @@ class MedstackRepository(context: Context, private val syncTransport: MobileSync
         }
     }
 
-    fun saveTask(title: String, due: String, quadrant: String) {
+    fun saveTask(title: String, due: String, quadrant: String, id: String? = null, dueTime: String = "") {
         if (!state.authenticated) { emit(state.copy(message = "请先登录")); return }
         val cleanTitle = title.trim().take(240)
         val cleanDue = due.trim()
@@ -345,14 +346,31 @@ class MedstackRepository(context: Context, private val syncTransport: MobileSync
             emit(state.copy(message = "截止日期请使用 YYYY-MM-DD"))
             return
         }
+        val cleanTime = dueTime.takeIf { cleanDue.isNotBlank() }.orEmpty()
+        if (cleanTime.isNotBlank() && (!cleanTime.matches(Regex("\\d{2}:\\d{2}")) ||
+                    runCatching { LocalTime.parse(cleanTime) }.isFailure)) {
+            emit(state.copy(message = "截止时间请使用 HH:MM"))
+            return
+        }
+        val cleanQuadrant = quadrant.takeIf { it in setOf("do", "plan", "delegate", "later") } ?: "plan"
+        if (id != null) {
+            mutateTask(id) { task ->
+                if (task.isNull("deletedAt")) task
+                    .put("title", cleanTitle)
+                    .put("quadrant", cleanQuadrant)
+                    .put("due", cleanDue)
+                    .put("dueTime", cleanTime)
+            }
+            return
+        }
         val document = JSONObject((state.document ?: defaultDocument).toString())
         val task = JSONObject()
             .put("id", "mobile:${UUID.randomUUID()}")
             .put("title", cleanTitle)
-            .put("quadrant", quadrant.takeIf { it in setOf("do", "plan", "delegate", "later") } ?: "plan")
+            .put("quadrant", cleanQuadrant)
             .put("project", "收集箱")
             .put("due", cleanDue)
-            .put("dueTime", "")
+            .put("dueTime", cleanTime)
             .put("reminder", "")
             .put("repeat", "none")
             .put("estimate", 0)
@@ -413,12 +431,40 @@ class MedstackRepository(context: Context, private val syncTransport: MobileSync
             emit(state.copy(focusStartedAt = null, focusUntil = null, message = "专注时间太短，未保存"))
             return
         }
+        emit(state.copy(focusStartedAt = null, focusUntil = null))
+        saveFocusInterval(start, end, completed)
+    }
+
+    fun addFocusMinutes(minutes: Int) {
+        if (!state.authenticated || state.focusStartedAt != null || minutes !in 1..180) return
+        val end = System.currentTimeMillis()
+        val start = end - minutes * 60_000L
+        val logs = state.document?.optJSONArray("logs") ?: JSONArray()
+        for (index in 0 until logs.length()) {
+            val record = logs.optJSONObject(index) ?: continue
+            if (!record.isNull("deletedAt")) continue
+            val segments = record.optJSONArray("segments")
+            val overlaps = if (segments == null || segments.length() == 0) {
+                start < record.optLong("endedAt") && end > record.optLong("startedAt")
+            } else (0 until segments.length()).any {
+                val segment = segments.optJSONObject(it)
+                segment != null && start < segment.optLong("end") && end > segment.optLong("start")
+            }
+            if (overlaps) {
+                emit(state.copy(message = "这段时间已有专注记录"))
+                return
+            }
+        }
+        saveFocusInterval(start, end, true, "手动补记")
+    }
+
+    private fun saveFocusInterval(start: Long, end: Long, completed: Boolean, title: String = "手机专注") {
         val document = JSONObject((state.document ?: defaultDocument).toString())
         document.getJSONArray("logs").put(
             JSONObject()
                 .put("id", "mobile:${UUID.randomUUID()}")
                 .put("taskId", "")
-                .put("title", "手机专注")
+                .put("title", title)
                 .put("project", "未分类")
                 .put("mode", "focus")
                 .put("startedAt", start)
@@ -428,7 +474,6 @@ class MedstackRepository(context: Context, private val syncTransport: MobileSync
                 .put("segments", JSONArray().put(JSONObject().put("start", start).put("end", end)))
                 .put("deletedAt", JSONObject.NULL),
         )
-        emit(state.copy(focusStartedAt = null, focusUntil = null))
         updateAndPush(document)
     }
 
@@ -474,7 +519,10 @@ class MedstackRepository(context: Context, private val syncTransport: MobileSync
             for (index in 0 until events.length()) {
                 val event = events.optJSONObject(index) ?: continue
                 if (!event.isNull("deletedAt")) continue
-                add(ScheduleItem(event.optString("title"), event.optString("start"), event.optString("end"), event.optString("location"), "日程"))
+                val kind = if (event.optString("calendarUid").startsWith("school-exam:") ||
+                    event.optString("id").startsWith("school-exam:") ||
+                    event.optString("title").startsWith("考试 · ")) "考试" else "日程"
+                add(ScheduleItem(event.optString("title"), event.optString("start"), event.optString("end"), event.optString("location"), kind))
             }
         }.sortedBy { it.start }
         return base.copy(tasks = tasks, deletedTasks = deleted, schedule = schedule)

@@ -72,6 +72,17 @@ class MobileWorkspaceTest {
         compose.onNodeWithText("保存").performClick()
         compose.waitUntil(6000) { repository.state.tasks.any { it.title == "合成离线任务" } }
         compose.onNodeWithText("合成离线任务").assertIsDisplayed()
+        compose.onNodeWithText("编辑").performClick()
+        compose.onNodeWithText("截止时间 HH:MM").performTextInput("14:30")
+        compose.onNodeWithText("立即").performClick()
+        compose.onNodeWithText("保存").performClick()
+        compose.runOnIdle {
+            assertEquals("14:30", repository.state.tasks.single().dueTime)
+            assertEquals("do", repository.state.tasks.single().quadrant)
+        }
+        navigate("四象限")
+        compose.onNodeWithText("重要紧急 · 1").assertIsDisplayed()
+        navigate("待办")
         screenshot("tasks")
         compose.onNode(isToggleable()).performClick()
         compose.runOnIdle { assertTrue(repository.state.tasks.single().completed) }
@@ -91,6 +102,7 @@ class MobileWorkspaceTest {
         compose.onNodeWithText("删除").performClick()
         navigate("日程")
         compose.onNodeWithText("合成日程").assertIsDisplayed()
+        compose.onNodeWithText("选日期").assertIsDisplayed()
         screenshot("schedule")
         navigate("专注")
         compose.onNodeWithText("自定义分钟（1–180）").performTextInput("37")
@@ -99,6 +111,7 @@ class MobileWorkspaceTest {
         Thread.sleep(1300)
         compose.onNodeWithText("结束并保存").performClick()
         compose.runOnIdle { assertEquals(1, repository.state.document!!.getJSONArray("logs").length()) }
+        compose.onNodeWithText("手机专注").performScrollTo().assertIsDisplayed()
         screenshot("focus")
         navigate("更多")
         compose.onNodeWithText("校园快讯").assertDoesNotExist()
