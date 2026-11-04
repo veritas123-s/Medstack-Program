@@ -75,8 +75,8 @@ class MobileWorkspaceTest {
         compose.runOnIdle { assertEquals(taskDate, repository.state.tasks.single().due) }
         compose.onNodeWithText("合成离线任务").assertIsDisplayed()
         compose.onNodeWithText("编辑").performClick()
-        compose.onNodeWithText("编辑任务").assertIsDisplayed()
         screenshot("task-editor")
+        compose.onNodeWithText("编辑任务").assertIsDisplayed()
         compose.onNodeWithTag("taskDueTime").performScrollTo().assertIsEnabled().performTextReplacement("14:30")
         compose.onNodeWithText("立即").performScrollTo().performClick()
         compose.onNodeWithText("保存").performClick()

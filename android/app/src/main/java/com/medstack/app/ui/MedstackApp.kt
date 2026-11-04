@@ -41,6 +41,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -68,6 +69,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
@@ -309,30 +312,40 @@ private fun TaskRow(task: MobileTask, repository: MedstackRepository, edit: (() 
 }
 
 @Composable
+private fun WorkspaceEditor(title: String, close: () -> Unit, save: () -> Unit, valid: Boolean, content: @Composable () -> Unit) {
+    Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding().padding(horizontal = 16.dp)) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium)
+                    TextButton(close) { Text("取消") }
+                }
+                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
+                HorizontalDivider()
+                Button(save, enabled = valid, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) { Text("保存") }
+            }
+        }
+    }
+}
+
+@Composable
 private fun TaskDialog(task: MobileTask?, onDismiss: () -> Unit, onSave: (String, String, String, String) -> Unit) {
     var title by rememberSaveable(task?.id) { mutableStateOf(task?.title.orEmpty()) }
     var due by rememberSaveable(task?.id) { mutableStateOf(task?.due.orEmpty()) }
     var time by rememberSaveable(task?.id) { mutableStateOf(task?.dueTime.orEmpty()) }
     var quadrant by rememberSaveable(task?.id) { mutableStateOf(task?.quadrant ?: "plan") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (task == null) "添加任务" else "编辑任务") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(title, { title = it }, label = { Text("任务名称") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(due, { due = it.take(10) }, label = { Text("截止日期 YYYY-MM-DD") },
-                    modifier = Modifier.fillMaxWidth().testTag("taskDueDate"), singleLine = true)
-                OutlinedTextField(time, { time = it.take(5) }, label = { Text("截止时间 HH:MM") },
-                    modifier = Modifier.fillMaxWidth().testTag("taskDueTime"),
-                    enabled = due.isNotBlank(), singleLine = true)
-                ChoiceChips(listOf("do" to "立即", "plan" to "规划", "delegate" to "处理", "later" to "以后"), quadrant) { quadrant = it }
-            }
-        },
-        confirmButton = { Button({ onSave(title, due, time, quadrant) }, enabled = title.isNotBlank() &&
-            (due.isBlank() || runCatching { LocalDate.parse(due) }.isSuccess) &&
-            (due.isBlank() || time.isBlank() || (time.length == 5 && runCatching { LocalTime.parse(time) }.isSuccess))) { Text("保存") } },
-        dismissButton = { TextButton(onDismiss) { Text("取消") } },
-    )
+    val valid = title.isNotBlank() && (due.isBlank() || runCatching { LocalDate.parse(due) }.isSuccess) &&
+        (due.isBlank() || time.isBlank() || (time.length == 5 && runCatching { LocalTime.parse(time) }.isSuccess))
+    WorkspaceEditor(if (task == null) "添加任务" else "编辑任务", onDismiss, { onSave(title, due, time, quadrant) }, valid) {
+        OutlinedTextField(title, { title = it.take(240) }, label = { Text("任务名称") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(due, { due = it.take(10) }, label = { Text("截止日期 YYYY-MM-DD") },
+            modifier = Modifier.fillMaxWidth().testTag("taskDueDate"), singleLine = true)
+        OutlinedTextField(time, { time = it.take(5) }, label = { Text("截止时间 HH:MM") },
+            modifier = Modifier.fillMaxWidth().testTag("taskDueTime"),
+            enabled = due.isNotBlank(), singleLine = true)
+        ChoiceChips(listOf("do" to "立即", "plan" to "规划", "delegate" to "处理", "later" to "以后"), quadrant) { quadrant = it }
+    }
 }
 
 @Composable
@@ -394,27 +407,19 @@ private fun EventDialog(event: ScheduleItem?, day: String, repository: MedstackR
         begin != null && finish != null && finish > begin && finish <= begin.plusDays(366) &&
         begin.year in 2000..2099 && finish.year in 2000..2099 &&
         (event?.allDay != true || (begin.toLocalTime() == LocalTime.MIDNIGHT && finish.toLocalTime() == LocalTime.MIDNIGHT))
-    AlertDialog(
-        onDismissRequest = close,
-        title = { Text(if (event == null) "添加日程" else "编辑日程") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(title, { title = it.take(240) }, label = { Text("日程名称") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                OutlinedTextField(start, { start = it.take(16) }, label = { Text("开始 YYYY-MM-DD HH:MM") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                OutlinedTextField(end, { end = it.take(16) }, label = { Text("结束 YYYY-MM-DD HH:MM") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                OutlinedTextField(location, { location = it.take(200) }, label = { Text("地点") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                OutlinedTextField(notes, { notes = it.take(5000) }, label = { Text("备注") }, modifier = Modifier.fillMaxWidth())
-                if (event != null) TextButton({ repository.deleteEvent(event.id); close() }) {
-                    Text("删除日程", color = MaterialTheme.colorScheme.error)
-                }
-            }
-        },
-        confirmButton = {
-            Button({ repository.saveEvent(event?.id.orEmpty(), title, startIso, endIso, location, notes, event?.allDay == true); close() },
-                enabled = valid) { Text("保存") }
-        },
-        dismissButton = { TextButton(close) { Text("取消") } },
-    )
+    WorkspaceEditor(if (event == null) "添加日程" else "编辑日程", close, {
+        repository.saveEvent(event?.id.orEmpty(), title, startIso, endIso, location, notes, event?.allDay == true)
+        close()
+    }, valid) {
+        OutlinedTextField(title, { title = it.take(240) }, label = { Text("日程名称") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(start, { start = it.take(16) }, label = { Text("开始 YYYY-MM-DD HH:MM") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(end, { end = it.take(16) }, label = { Text("结束 YYYY-MM-DD HH:MM") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(location, { location = it.take(200) }, label = { Text("地点") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(notes, { notes = it.take(5000) }, label = { Text("备注") }, modifier = Modifier.fillMaxWidth())
+        if (event != null) TextButton({ repository.deleteEvent(event.id); close() }) {
+            Text("删除日程", color = MaterialTheme.colorScheme.error)
+        }
+    }
 }
 
 @Composable
