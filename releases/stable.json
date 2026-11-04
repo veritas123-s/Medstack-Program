@@ -1,31 +1,29 @@
 {
   "schema": 1,
-  "version": "6.3.2",
-  "publishedAt": "2026-11-04T08:27:34Z",
-  "title": "医栈通 V6.3.2",
+  "version": "6.3.3",
+  "publishedAt": "2026-11-04T08:54:50Z",
+  "title": "医栈通 V6.3.3",
   "notes": [
-    "桌面今日概览缩短统计区，任务、日程与通知按内容排布。",
-    "桌面任务清单按行排列，侧栏和设置分类减少占位。",
-    "安卓登录、今日与专注页加入便笺插画、点阵和专注进度表盘。",
-    "安卓任务操作并入行内菜单，浅色和深色采用同一套排版。"
+    "桌面更新提示缩为紧凑操作行，下载时显示进度条和百分比。",
+    "今日概览随窗口高度显示更多待办、日程和通知。"
   ],
   "urgent": false,
   "downloads": {
     "windows": {
-      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.3.2/Medstack-Setup-6.3.2-x64.exe",
-      "sha256": "2f47e5f56bc651aab5aa57157977b2f73311cab72820323417412dd2226170a0"
+      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.3.3/Medstack-Setup-6.3.3-x64.exe",
+      "sha256": "8a67e1cb78ab1e336c3a4d8f8df16cbc114c8369efb77a6614a1861c6590d05b"
     },
     "android": {
-      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.3.2/Medstack-6.3.2-Android.apk",
-      "sha256": "0df2871e242151ef5d5e9afe60de954c2f9eaf862c9a02b493ff08e2413a7a06"
+      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.3.3/Medstack-6.3.3-Android.apk",
+      "sha256": "25c85e02950d5627375ee7101acac2969ce30bb8bea9320f125f03d0223c8899"
     },
     "macos_x64": {
-      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.3.2/Medstack-6.3.2-macOS-x64.dmg",
-      "sha256": "293b13e77942357abdcb814860c9aaa4d1c5cd08123ad676bd51496142d9a2b9"
+      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.3.3/Medstack-6.3.3-macOS-x64.dmg",
+      "sha256": "b6828e6fca164ea622460da731dc932f0088eba7bd9edd3be4926a286f4d21bc"
     },
     "macos_arm64": {
-      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.3.2/Medstack-6.3.2-macOS-arm64.dmg",
-      "sha256": "5ba8cd4d0dad2706892966b227d88a9842a5e2c09832c6cb16b0576341a8deb4"
+      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.3.3/Medstack-6.3.3-macOS-arm64.dmg",
+      "sha256": "812b025c10912d622e043819eb5ccda2db3607571c4381c9de23a5f53ee4192d"
     }
   }
 }
