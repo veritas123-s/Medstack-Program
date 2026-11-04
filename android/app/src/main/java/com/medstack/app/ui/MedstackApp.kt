@@ -69,8 +69,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
@@ -217,7 +215,7 @@ private fun MobileHeader(ui: MedstackUiState, page: MobilePage, repository: Meds
 @Composable
 private fun ChoiceChips(options: List<Pair<String, String>>, selected: String, select: (String) -> Unit) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val columns = (maxWidth / (88.dp * LocalDensity.current.fontScale)).toInt().coerceAtLeast(1)
+        val columns = (maxWidth / (78.dp * LocalDensity.current.fontScale)).toInt().coerceAtLeast(1)
         Column {
             for (row in options.chunked(columns)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -259,6 +257,14 @@ private fun TasksScreen(ui: MedstackUiState, repository: MedstackRepository) {
     var adding by remember { mutableStateOf(false) }
     var filter by rememberSaveable { mutableStateOf("active") }
     var editing by remember { mutableStateOf<MobileTask?>(null) }
+    if (adding || editing != null) {
+        TaskEditor(editing, onDismiss = { adding = false; editing = null }) { title, due, time, quadrant ->
+            repository.saveTask(title, due, quadrant, editing?.id, time)
+            adding = false
+            editing = null
+        }
+        return
+    }
     val today = LocalDate.now().toString()
     val visible = when (filter) {
         "completed" -> ui.tasks.filter { it.completed }
@@ -289,48 +295,47 @@ private fun TasksScreen(ui: MedstackUiState, repository: MedstackRepository) {
         }
         if (visible.isEmpty()) item { EmptyCard("暂无任务") }
     }
-    if (adding || editing != null) TaskDialog(editing, onDismiss = { adding = false; editing = null }) { title, due, time, quadrant ->
-        repository.saveTask(title, due, quadrant, editing?.id, time)
-        adding = false
-        editing = null
-    }
 }
 
 @Composable
 private fun TaskRow(task: MobileTask, repository: MedstackRepository, edit: (() -> Unit)? = null) {
-    Card(shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(task.completed, { repository.toggleTask(task.id) })
-            Column(Modifier.weight(1f).padding(horizontal = 4.dp)) {
-                Text(task.title, style = MaterialTheme.typography.titleMedium)
-                Text(listOf(task.project, listOf(task.due, task.dueTime).filter(String::isNotBlank).joinToString(" "), quadrantName(task.quadrant)).filter(String::isNotBlank).joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (edit != null) TextButton(edit) { Text("编辑") }
+    Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(task.completed, { repository.toggleTask(task.id) })
+                Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                    Text(task.title, style = MaterialTheme.typography.titleMedium)
+                    Text(listOf(task.project, listOf(task.due, task.dueTime).filter(String::isNotBlank).joinToString(" "), quadrantName(task.quadrant)).filter(String::isNotBlank).joinToString(" · "), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
-            TextButton({ repository.deleteTask(task.id) }) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                if (edit != null) TextButton(edit) { Text("编辑") }
+                TextButton({ repository.deleteTask(task.id) }) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            }
         }
     }
 }
 
 @Composable
 private fun WorkspaceEditor(title: String, close: () -> Unit, save: () -> Unit, valid: Boolean, content: @Composable () -> Unit) {
-    Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding().padding(horizontal = 16.dp)) {
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium)
-                    TextButton(close) { Text("取消") }
-                }
-                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
-                HorizontalDivider()
-                Button(save, enabled = valid, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) { Text("保存") }
+    BackHandler(onBack = close)
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                TextButton(close) { Text("取消") }
             }
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
+            HorizontalDivider()
+            Button(save, enabled = valid, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) { Text("保存") }
         }
     }
 }
 
 @Composable
-private fun TaskDialog(task: MobileTask?, onDismiss: () -> Unit, onSave: (String, String, String, String) -> Unit) {
+private fun TaskEditor(task: MobileTask?, onDismiss: () -> Unit, onSave: (String, String, String, String) -> Unit) {
     var title by rememberSaveable(task?.id) { mutableStateOf(task?.title.orEmpty()) }
     var due by rememberSaveable(task?.id) { mutableStateOf(task?.due.orEmpty()) }
     var time by rememberSaveable(task?.id) { mutableStateOf(task?.dueTime.orEmpty()) }
@@ -357,6 +362,10 @@ private fun ScheduleScreen(ui: MedstackUiState, repository: MedstackRepository) 
     var adding by rememberSaveable { mutableStateOf(false) }
     var editing by remember { mutableStateOf<ScheduleItem?>(null) }
     val day = dateKey.ifBlank { today.toString() }
+    if (adding || editing != null) {
+        EventEditor(editing, day, repository) { adding = false; editing = null }
+        return
+    }
     val items = (ui.schedule + ui.tasks.filter { !it.completed && it.due.isNotBlank() }.map { task ->
         val at = task.due + task.dueTime.takeIf(String::isNotBlank)?.let { "T$it" }.orEmpty()
         ScheduleItem(task.title, at, at, task.project, "任务")
@@ -386,14 +395,10 @@ private fun ScheduleScreen(ui: MedstackUiState, repository: MedstackRepository) 
         }
         if (items.isEmpty()) item { EmptyCard("暂无安排") }
     }
-    if (adding || editing != null) {
-        val close = { adding = false; editing = null }
-        EventDialog(editing, day, repository, close)
-    }
 }
 
 @Composable
-private fun EventDialog(event: ScheduleItem?, day: String, repository: MedstackRepository, close: () -> Unit) {
+private fun EventEditor(event: ScheduleItem?, day: String, repository: MedstackRepository, close: () -> Unit) {
     var title by rememberSaveable(event?.id) { mutableStateOf(event?.title.orEmpty()) }
     var start by rememberSaveable(event?.id) { mutableStateOf(event?.start?.take(16)?.replace('T', ' ') ?: "$day 09:00") }
     var end by rememberSaveable(event?.id) { mutableStateOf(event?.end?.take(16)?.replace('T', ' ') ?: "$day 10:00") }
