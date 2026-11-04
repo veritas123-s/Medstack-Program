@@ -1,29 +1,29 @@
 {
   "schema": 1,
-  "version": "6.3.3",
-  "publishedAt": "2026-11-04T08:54:50Z",
-  "title": "医栈通 V6.3.3",
+  "version": "6.3.4",
+  "publishedAt": "2026-11-04T09:33:26Z",
+  "title": "医栈通 V6.3.4",
   "notes": [
-    "桌面更新提示缩为紧凑操作行，下载时显示进度条和百分比。",
-    "今日概览随窗口高度显示更多待办、日程和通知。"
+    "桌面今日概览分列今天和明天的日程、待办，优先显示当日重点。",
+    "顶部显示时间、可切换地区的天气和星球插画。"
   ],
   "urgent": false,
   "downloads": {
     "windows": {
-      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.3.3/Medstack-Setup-6.3.3-x64.exe",
-      "sha256": "8a67e1cb78ab1e336c3a4d8f8df16cbc114c8369efb77a6614a1861c6590d05b"
+      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.3.4/Medstack-Setup-6.3.4-x64.exe",
+      "sha256": "fcff8ca67cbe83268e66f5a7c53c120fa2ff82b6f62f0bcb17f4f186bbdcaab9"
     },
     "android": {
-      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.3.3/Medstack-6.3.3-Android.apk",
-      "sha256": "25c85e02950d5627375ee7101acac2969ce30bb8bea9320f125f03d0223c8899"
+      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.3.4/Medstack-6.3.4-Android.apk",
+      "sha256": "640c3aa1dbbee84b5cc2334950d0a00ce83995b2528e4fd3095e0bf7be18d561"
     },
     "macos_x64": {
-      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.3.3/Medstack-6.3.3-macOS-x64.dmg",
-      "sha256": "b6828e6fca164ea622460da731dc932f0088eba7bd9edd3be4926a286f4d21bc"
+      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.3.4/Medstack-6.3.4-macOS-x64.dmg",
+      "sha256": "756330f9398d9df3294f6980d5dd5bf7ed80d3909174de9080712a3374cdca1b"
     },
     "macos_arm64": {
-      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.3.3/Medstack-6.3.3-macOS-arm64.dmg",
-      "sha256": "812b025c10912d622e043819eb5ccda2db3607571c4381c9de23a5f53ee4192d"
+      "url": "https://github.com/veritas123-s/Medstack-Program/releases/download/v6.3.4/Medstack-6.3.4-macOS-arm64.dmg",
+      "sha256": "9ea11611d145d43e1ef3a2ebed2868521b6d7cedeb8be1808a39554665c7f833"
     }
   }
 }
