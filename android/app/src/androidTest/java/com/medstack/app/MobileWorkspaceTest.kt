@@ -33,6 +33,11 @@ class MobileWorkspaceTest {
 
     private fun navigate(label: String) = compose.onNode(hasText(label) and hasClickAction()).performClick()
 
+    private fun taskAction(label: String) {
+        compose.onNodeWithContentDescription("任务操作").performClick()
+        compose.onNodeWithText(label).assertIsDisplayed().performClick()
+    }
+
     private fun screenshot(name: String) {
         compose.waitForIdle()
         val folder = File(compose.activity.getExternalFilesDir(null), "ui-evidence").apply { mkdirs() }
@@ -74,7 +79,7 @@ class MobileWorkspaceTest {
         compose.waitUntil(6000) { repository.state.tasks.any { it.title == "合成离线任务" } }
         compose.runOnIdle { assertEquals(taskDate, repository.state.tasks.single().due) }
         compose.onNodeWithText("合成离线任务").assertIsDisplayed()
-        compose.onNodeWithText("编辑").performClick()
+        taskAction("编辑")
         screenshot("task-editor")
         compose.onNodeWithText("编辑任务").assertIsDisplayed()
         compose.onNodeWithTag("taskDueTime").performScrollTo().assertIsEnabled().performTextReplacement("14:30")
@@ -93,7 +98,7 @@ class MobileWorkspaceTest {
         compose.onNodeWithText("合成离线任务").assertDoesNotExist()
         navigate("已完成")
         compose.onNodeWithText("合成离线任务").assertIsDisplayed()
-        compose.onNodeWithText("删除").performClick()
+        taskAction("删除")
         compose.runOnIdle {
             assertTrue(repository.state.tasks.isEmpty())
             assertFalse(repository.state.document!!.getJSONArray("tasks").getJSONObject(0).isNull("deletedAt"))
@@ -103,7 +108,7 @@ class MobileWorkspaceTest {
         compose.onNodeWithText("恢复").performClick()
         compose.runOnIdle { assertEquals(1, repository.state.tasks.size); assertTrue(repository.state.deletedTasks.isEmpty()) }
         navigate("已完成")
-        compose.onNodeWithText("删除").performClick()
+        taskAction("删除")
         navigate("日程")
         compose.onNodeWithText("合成日程").assertIsDisplayed()
         compose.onNodeWithText("选日期").assertIsDisplayed()
@@ -113,6 +118,7 @@ class MobileWorkspaceTest {
         compose.runOnIdle { assertTrue(repository.state.schedule.any { it.title == "合成手机新增日程" }) }
         screenshot("schedule")
         navigate("专注")
+        screenshot("focus-timer")
         compose.onNodeWithText("自定义分钟（1–180）").performScrollTo().performTextReplacement("37")
         screenshot("focus-keyboard")
         compose.onNodeWithText("开始专注").assertIsDisplayed().performClick()

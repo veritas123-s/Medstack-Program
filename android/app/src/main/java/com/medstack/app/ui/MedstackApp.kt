@@ -4,6 +4,7 @@ import android.app.DatePickerDialog
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,12 +31,16 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -75,6 +80,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.medstack.app.R
 import com.medstack.app.data.MedstackRepository
 import com.medstack.app.data.MedstackUiState
@@ -86,6 +93,7 @@ import java.time.LocalDateTime
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.delay
 
 private enum class MobilePage(val title: String) {
@@ -124,14 +132,16 @@ fun MedstackApp(ui: MedstackUiState, repository: MedstackRepository) {
         }
     }
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
                 listOf(MobilePage.Today, MobilePage.Tasks, MobilePage.Schedule, MobilePage.Focus, MobilePage.More).forEach { item ->
                     NavigationBarItem(
                         selected = page == item || (item == MobilePage.More && subpage),
                         onClick = { page = item },
-                        icon = { NavigationIcon(item) },
+                        icon = { NavigationIcon(item, page == item || (item == MobilePage.More && subpage)) },
                         label = { Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer),
                     )
                 }
             }
@@ -160,36 +170,41 @@ private fun AuthScreen(ui: MedstackUiState, repository: MedstackRepository) {
     var email by remember { mutableStateOf(ui.pendingEmail) }
     var password by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
-    Box(Modifier.fillMaxSize().safeDrawingPadding().imePadding().padding(24.dp), contentAlignment = Alignment.Center) {
-        Card(
-            modifier = Modifier.widthIn(max = 440.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        ) {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Image(painterResource(R.drawable.medstack_icon),contentDescription="Medstack",modifier=Modifier.size(48.dp))
-                Text("医栈通 Medstack", style = MaterialTheme.typography.headlineLarge)
-                Text("医栈事，一站通", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (ui.needsVerification) {
-                    Text(ui.pendingEmail, fontWeight = FontWeight.SemiBold)
-                    OutlinedTextField(code, { code = it.take(10) }, label = { Text("邮箱验证码") }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    Button({ repository.verify(code) }, modifier = Modifier.fillMaxWidth(), enabled = !ui.loading) { Text("完成验证并登录") }
-                    TextButton({ repository.clearMessage(); register = true }) { Text("返回注册") }
-                } else {
-                    OutlinedTextField(email, { email = it.take(254) }, label = { Text("邮箱") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
-                    OutlinedTextField(password, { password = it.take(128) }, label = { Text("密码") }, modifier = Modifier.fillMaxWidth(), singleLine = true, visualTransformation = PasswordVisualTransformation())
-                    Button(
-                        { if (register) repository.register(email, password) else repository.login(email, password) },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !ui.loading,
-                    ) { Text(if (register) "发送验证码" else "登录") }
-                    TextButton({ register = !register; repository.clearMessage() }) { Text(if (register) "已有账号，直接登录" else "第一次使用，注册账号") }
-                }
-                if (ui.loading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) { CircularProgressIndicator(Modifier.size(22.dp)); Text("正在连接…") }
-                if (ui.message.isNotBlank()) Text(ui.message, color = MaterialTheme.colorScheme.error)
-                HorizontalDivider()
-                Image(painterResource(R.drawable.medtrix_wordmark_transparent), contentDescription = "Medtrix 团队", modifier = Modifier.width(160.dp).height(54.dp), contentScale = ContentScale.Fit)
+    Box(Modifier.fillMaxSize().safeDrawingPadding().imePadding().padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+        Column(Modifier.widthIn(max = 440.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            WorkspaceHero(WorkspaceMotif.Notebook) {
+                Image(painterResource(R.drawable.medstack_icon), contentDescription = null, modifier = Modifier.size(34.dp))
+                Text("医栈通 Medstack", style = MaterialTheme.typography.titleLarge)
+                Text("医栈事，一站通", style = MaterialTheme.typography.labelMedium, color = HeroMuted)
             }
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (ui.needsVerification) {
+                        Text(ui.pendingEmail, fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(code, { code = it.take(10) }, label = { Text("邮箱验证码") }, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                        Button({ repository.verify(code) }, modifier = Modifier.fillMaxWidth(), enabled = !ui.loading) { Text("完成验证并登录") }
+                        TextButton({ repository.clearMessage(); register = true }) { Text("返回注册") }
+                    } else {
+                        OutlinedTextField(email, { email = it.take(254) }, label = { Text("邮箱") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
+                        OutlinedTextField(password, { password = it.take(128) }, label = { Text("密码") }, modifier = Modifier.fillMaxWidth(), singleLine = true, visualTransformation = PasswordVisualTransformation())
+                        Button(
+                            { if (register) repository.register(email, password) else repository.login(email, password) },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !ui.loading,
+                        ) { Text(if (register) "发送验证码" else "登录") }
+                        TextButton({ register = !register; repository.clearMessage() }) { Text(if (register) "已有账号，直接登录" else "第一次使用，注册账号") }
+                    }
+                    if (ui.loading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) { CircularProgressIndicator(Modifier.size(22.dp)); Text("正在连接…") }
+                    if (ui.message.isNotBlank()) Text(ui.message, color = MaterialTheme.colorScheme.error)
+                }
+            }
+            Image(painterResource(R.drawable.medtrix_wordmark_transparent), contentDescription = "Medtrix 团队",
+                modifier = Modifier.align(Alignment.CenterHorizontally).width(112.dp).height(34.dp), contentScale = ContentScale.Fit)
         }
     }
 }
@@ -197,7 +212,7 @@ private fun AuthScreen(ui: MedstackUiState, repository: MedstackRepository) {
 @Composable
 private fun MobileHeader(ui: MedstackUiState, page: MobilePage, repository: MedstackRepository, back: (() -> Unit)?) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 10.dp, top = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -231,17 +246,19 @@ private fun ChoiceChips(options: List<Pair<String, String>>, selected: String, s
 
 @Composable
 private fun TodayScreen(ui: MedstackUiState, repository: MedstackRepository) {
-    val today = LocalDate.now(ZoneId.of("Asia/Shanghai")).toString()
+    val date = LocalDate.now(ZoneId.of("Asia/Shanghai"))
+    val today = date.toString()
     val due = ui.tasks.filter { !it.completed && it.due.isNotBlank() && it.due <= today }
     val courses = ui.schedule.filter { it.start.startsWith(today) }
-    LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), shape = RoundedCornerShape(22.dp)) {
-                Column(Modifier.padding(20.dp)) {
-                    Text(today, style = MaterialTheme.typography.labelLarge)
-                    Text(if (due.isEmpty()) "今天没有临近任务" else "${due.size} 项任务需要处理", style = MaterialTheme.typography.titleLarge)
-                    Text("${courses.size} 项安排 · ${ui.tasks.count { !it.completed }} 项待办", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+            WorkspaceHero(WorkspaceMotif.Notebook) {
+                Text(date.format(DateTimeFormatter.ofPattern("M 月 d 日 · EEE", Locale.SIMPLIFIED_CHINESE)),
+                    style = MaterialTheme.typography.labelMedium, color = HeroMuted)
+                Text(if (due.isEmpty()) "今天没有到期任务" else "${due.size} 项任务待处理",
+                    Modifier.padding(vertical = 5.dp), style = MaterialTheme.typography.titleLarge)
+                Text("${courses.size} 项安排 · ${ui.tasks.count { !it.completed }} 项待办",
+                    style = MaterialTheme.typography.labelMedium, color = HeroMuted)
             }
         }
         item { SectionTitle("当日任务") }
@@ -274,8 +291,14 @@ private fun TasksScreen(ui: MedstackUiState, repository: MedstackRepository) {
         "quadrants" -> ui.tasks.filter { !it.completed }
         else -> ui.tasks.filter { !it.completed }
     }
-    LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Button({ adding = true }, modifier = Modifier.fillMaxWidth()) { Text("添加任务") } }
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("${visible.size} 项任务", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button({ adding = true }) { Text("添加任务") }
+            }
+        }
         item {
             ChoiceChips(listOf("active" to "待办", "overdue" to "逾期", "quadrants" to "四象限",
                 "completed" to "已完成", "trash" to "回收站"), filter) { filter = it }
@@ -300,19 +323,30 @@ private fun TasksScreen(ui: MedstackUiState, repository: MedstackRepository) {
 
 @Composable
 private fun TaskRow(task: MobileTask, repository: MedstackRepository, edit: (() -> Unit)? = null) {
+    var menuOpen by remember { mutableStateOf(false) }
     Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(task.completed, { repository.toggleTask(task.id) })
-                Column(Modifier.weight(1f).padding(end = 8.dp)) {
-                    Text(task.title, style = MaterialTheme.typography.titleMedium)
-                    Text(listOf(task.project, listOf(task.due, task.dueTime).filter(String::isNotBlank).joinToString(" "), quadrantName(task.quadrant)).filter(String::isNotBlank).joinToString(" · "), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+        Row(Modifier.fillMaxWidth().padding(end = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(task.completed, { repository.toggleTask(task.id) })
+            Column(Modifier.weight(1f).padding(vertical = 10.dp)) {
+                Text(task.title, style = MaterialTheme.typography.titleMedium)
+                Text(listOf(task.project, listOf(task.due, task.dueTime).filter(String::isNotBlank).joinToString(" "), quadrantName(task.quadrant)).filter(String::isNotBlank).joinToString(" · "), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                if (edit != null) TextButton(edit) { Text("编辑") }
-                TextButton({ repository.deleteTask(task.id) }) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            Box {
+                IconButton({ menuOpen = true }, modifier = Modifier.semantics { contentDescription = "任务操作" }) {
+                    val ink = MaterialTheme.colorScheme.onSurfaceVariant
+                    Canvas(Modifier.size(20.dp)) {
+                        for (fraction in listOf(.23f, .5f, .77f)) {
+                            drawCircle(ink, 1.7.dp.toPx(), Offset(size.width * fraction, size.height / 2))
+                        }
+                    }
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    if (edit != null) DropdownMenuItem(text = { Text("编辑") }, onClick = { menuOpen = false; edit() })
+                    DropdownMenuItem(text = { Text("删除", color = MaterialTheme.colorScheme.error) },
+                        onClick = { menuOpen = false; repository.deleteTask(task.id) })
+                }
             }
         }
     }
@@ -440,12 +474,17 @@ private fun ScheduleCard(title: String, start: String, end: String, location: St
         else -> "$startDay $startClock – $endDay $endClock"
     }
     Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.padding(14.dp)) {
-            Text(kind, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                val accent = MaterialTheme.colorScheme.primary
+                Canvas(Modifier.size(7.dp)) { drawCircle(accent) }
+                Text(kind, color = accent, style = MaterialTheme.typography.labelMedium)
+            }
             Text(title, style = MaterialTheme.typography.titleMedium)
-            if (timing.isNotBlank()) Text(timing, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (location.isNotBlank()) Text(location, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (timing.isNotBlank()) Text(timing, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+            if (location.isNotBlank()) Text(location, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
             if (edit != null) TextButton(edit) { Text("编辑日程") }
         }
     }
@@ -461,6 +500,9 @@ private fun FocusScreen(ui: MedstackUiState, repository: MedstackRepository) {
     val inputMinutes = customMinutes.toIntOrNull() ?: minutes
     val remaining = if (ui.focusStartedAt == null) inputMinutes * 60L
         else ((ui.focusUntil ?: ui.clock) - ui.clock).coerceAtLeast(0) / 1000
+    val progress = if (ui.focusStartedAt != null && ui.focusUntil != null) {
+        (ui.focusUntil - ui.clock).toFloat() / (ui.focusUntil - ui.focusStartedAt).coerceAtLeast(1L)
+    } else null
     val records = remember(ui.document) {
         val entries = ui.document?.optJSONArray("logs")
         (0 until (entries?.length() ?: 0)).mapNotNull { entries?.optJSONObject(it) }
@@ -471,8 +513,11 @@ private fun FocusScreen(ui: MedstackUiState, repository: MedstackRepository) {
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
-                Text(String.format("%02d:%02d", remaining / 60, remaining % 60), Modifier.fillMaxWidth(),
-                    style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center)
+                WorkspaceHero(WorkspaceMotif.Orbit, progress = progress) {
+                    Text(if (progress == null) "本轮专注" else "专注中", style = MaterialTheme.typography.labelMedium, color = HeroMuted)
+                    Text(String.format(Locale.ROOT, "%02d:%02d", remaining / 60, remaining % 60),
+                        style = MaterialTheme.typography.displaySmall)
+                }
             }
             if (ui.focusStartedAt == null) item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -607,8 +652,8 @@ private fun MobileCampusScreen(ui: MedstackUiState) {
 }
 
 @Composable
-private fun NavigationIcon(page: MobilePage) {
-    val color = MaterialTheme.colorScheme.onSurfaceVariant
+private fun NavigationIcon(page: MobilePage, selected: Boolean) {
+    val color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     Canvas(Modifier.size(24.dp)) {
         val unit = size.width / 24f
         val stroke = Stroke(1.7f * unit, cap = StrokeCap.Round)
